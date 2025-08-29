@@ -27,12 +27,14 @@ async function getTranscript(videoId: string): Promise<string> {
 
     const data = await response.json();
 
-    if (!Array.isArray(data) || data.length === 0 || !data[0].transcript) {
+    // Defensive coding: check the response structure revealed by curl.
+    if (!Array.isArray(data) || data.length === 0 || !data[0].tracks || !Array.isArray(data[0].tracks) || data[0].tracks.length === 0 || !data[0].tracks[0].transcript) {
         console.error('Unexpected API response structure:', data);
         throw new Error('Could not get transcript for this video. The API returned an unexpected format or an empty transcript.');
     }
 
-    return data[0].transcript;
+    const transcriptSegments = data[0].tracks[0].transcript;
+    return transcriptSegments.map((segment: any) => segment.text).join(' ');
 }
 
 export async function summarizeLogic(videoUrl: string) {

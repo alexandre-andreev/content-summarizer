@@ -10,7 +10,7 @@ async function getTranscript(videoId: string): Promise<string> {
     const response = await fetch('https://www.youtube-transcript.io/api/transcripts', {
         method: 'POST',
         headers: {
-            'Authorization': `Basic ${process.env.TRANSCRIPT_API_KEY}`,
+            'Authorization': `Bearer ${process.env.TRANSCRIPT_API_KEY}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({ ids: [videoId] })

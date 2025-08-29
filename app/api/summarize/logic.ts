@@ -7,22 +7,26 @@ function getYoutubeId(url: string): string | null {
 }
 
 async function getTranscript(videoId: string): Promise<string> {
+    const apiKey = process.env.TRANSCRIPT_API_KEY;
     const response = await fetch('https://www.youtube-transcript.io/api/transcripts', {
         method: 'POST',
         headers: {
-            'Authorization': `Basic ${process.env.TRANSCRIPT_API_KEY}`,
+            'Authorization': `Basic ${apiKey}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({ ids: [videoId] })
     });
 
     if (!response.ok) {
+        if (response.status === 401) {
+            const keyHint = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'Not loaded';
+            throw new Error(`Authorization failed (401). Key hint: [${keyHint}]`);
+        }
         throw new Error(`Failed to fetch transcript. Status: ${response.status}`);
     }
 
     const data = await response.json();
 
-    // Defensive coding: check the response structure.
     if (!Array.isArray(data) || data.length === 0 || !data[0].transcript) {
         console.error('Unexpected API response structure:', data);
         throw new Error('Could not get transcript for this video. The API returned an unexpected format or an empty transcript.');

@@ -54,29 +54,3 @@
 Нужно обеспечить безопасность перданных тебе API KEY.
 Перед зауском нужно выполнить тестирование
 
-Вот curl для доступу к API YouTube на rapidapi.com:
-
-curl --request GET \
-	--url 'https://youtube138.p.rapidapi.com/auto-complete/?q=desp&hl=en&gl=US' \
-	--header 'x-rapidapi-host: youtube138.p.rapidapi.com' \
-	--header 'x-rapidapi-key: 208f4eb259mshc543649010c3703p123913jsnaafb716692d6'
-
-Вот образец curl для доступа к gemim по API:
-curl  с  моим GEMINI_API_KEY
-
-"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" \
-  -H 'Content-Type: application/json' \
-  -H 'X-goog-api-key: AIzaSyD3ZVaL9WlRNT6hznb0dsdJnLEQn_5kv6s' \
-  -X POST \
-  -d '{
-    "contents": [
-      {
-        "parts": [
-          {
-            "text": "Explain how AI works in a few words"
-          }
-        ]
-      }
-    ]
-  }'
-

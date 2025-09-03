@@ -1,0 +1,107 @@
+{
+  "project": {
+    "name": "content-summarizer",
+    "version": "0.1.0",
+    "description": "YouTube video content summarizer using AI",
+    "lastUpdated": "2025-01-27"
+  },
+  "techStack": {
+    "frontend": {
+      "framework": "Next.js 15.2.4",
+      "ui": "React 19",
+      "styling": "Tailwind CSS 4.1.9",
+      "components": "shadcn/ui + Radix UI"
+    },
+    "backend": {
+      "runtime": "Node.js 22.18.0",
+      "api": "Next.js API Routes",
+      "ai": "Google Gemini Flash 2.5",
+      "transcripts": "RapidAPI + youtube-transcript-plus"
+    },
+    "tools": {
+      "packageManager": "pnpm",
+      "versionControl": "Git 2.44.0",
+      "editor": "VS Code 1.103.2",
+      "mcp": "Model Context Protocol SDK 1.17.5"
+    }
+  },
+  "environment": {
+    "nodeVersion": "v22.18.0",
+    "npmVersion": "10.9.3",
+    "pnpmInstalled": true,
+    "gitConfigured": true,
+    "vercelConnected": true
+  },
+  "dependencies": {
+    "installed": [
+      "@google/generative-ai",
+      "youtube-transcript-plus",
+      "@modelcontextprotocol/sdk",
+      "next",
+      "react",
+      "react-dom",
+      "@radix-ui/*",
+      "tailwindcss",
+      "lucide-react"
+    ],
+    "packageManager": "pnpm",
+    "lockFile": "pnpm-lock.yaml"
+  },
+  "projectStructure": {
+    "api": "app/api/summarize/",
+    "components": "components/",
+    "ui": "components/ui/",
+    "utils": "lib/",
+    "hooks": "hooks/",
+    "public": "public/"
+  },
+  "git": {
+    "repository": "https://github.com/alexandre-andreev/content-summarizer.git",
+    "branch": "main",
+    "lastCommit": "feat: migrate to pnpm",
+    "status": "clean"
+  },
+  "deployment": {
+    "platform": "Vercel",
+    "url": "https://vercel.com/alexandreandreev-9072s-projects/~/deployments",
+    "autoDeploy": true,
+    "status": "connected"
+  },
+  "mcp": {
+    "sdkInstalled": true,
+    "version": "1.17.5",
+    "tested": true,
+    "ready": true
+  },
+  "apiKeys": {
+    "rapidapi": "configured",
+    "gemini": "configured",
+    "storage": "environment variables"
+  },
+  "completedTasks": [
+    "Project structure setup",
+    "UI components configuration",
+    "API endpoint creation",
+    "RapidAPI integration",
+    "Gemini API integration",
+    "Vercel deployment setup",
+    "Git repository configuration",
+    "pnpm migration",
+    "MCP SDK installation"
+  ],
+  "nextTasks": [
+    "API testing with real YouTube URLs",
+    "Error handling improvement",
+    "Input validation",
+    "Loading indicators",
+    "Caching implementation",
+    "Logging setup",
+    "MCP server creation"
+  ],
+  "notes": [
+    "Project migrated from npm to pnpm",
+    "MCP SDK ready for custom server development",
+    "All API keys stored in environment variables",
+    "Ready for real-world testing"
+  ]
+}

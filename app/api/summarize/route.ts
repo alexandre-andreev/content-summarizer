@@ -17,21 +17,25 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('=== SUMMARIZE API STARTED ===')
     const { videoUrl } = await req.json();
-    console.log('Starting summarization with timeout for:', videoUrl);
+    console.log('Video URL received:', videoUrl);
     
+    console.log('Starting summarization with timeout...');
     // Add 120 second timeout (2 minutes) to prevent hanging
     const summary = await withTimeout(
       summarizeLogic(videoUrl),
       120000 // 2 minutes
     );
     
-    console.log('Summarization completed successfully');
+    console.log('✅ Summarization completed successfully');
+    console.log('Summary length:', summary?.length || 0);
     return NextResponse.json({ summary });
   } catch (error) {
-    console.error('Error in /api/summarize:', error);
+    console.error('❌ Error in /api/summarize:', error);
 
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    console.error('Error message:', errorMessage);
 
     // Return the raw error message directly for better debugging
     return NextResponse.json({ error: errorMessage }, { status: 500 });

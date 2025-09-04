@@ -17,7 +17,8 @@ import {
   Calendar,
   LogOut,
   User,
-  History
+  History,
+  RefreshCw
 } from 'lucide-react'
 import type { Summary } from '@/lib/supabase/client'
 
@@ -78,14 +79,24 @@ export default function DashboardPage() {
     setError(null)
 
     try {
+      console.log('Loading dashboard data for user:', user.id)
       const data = await databaseService.getDashboardData(user.id)
+      console.log('Dashboard data received:', data)
       
       if (data.error) {
+        console.error('Dashboard data error:', data.error)
         setError(data.error.message)
       } else {
+        console.log('Setting dashboard data:', {
+          totalSummaries: data.totalSummaries,
+          recentSummaries: data.recentSummaries?.length || 0,
+          favoriteCount: data.favoriteCount,
+          thisWeekCount: data.thisWeekCount
+        })
         setDashboardData(data)
       }
     } catch (err) {
+      console.error('Error loading dashboard data:', err)
       setError('Failed to load dashboard data')
     } finally {
       setLoading(false)
@@ -104,36 +115,40 @@ export default function DashboardPage() {
     try {
       console.log('Starting summarization for:', videoUrl)
       
-      // Call the API to generate summary
+      // Call the API to generate summary with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+      }, 150000) // 2.5 minutes client-side timeout
+
       const response = await fetch('/api/summarize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ videoUrl }),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
       console.log('API response status:', response.status)
-      const data = await response.json()
-      console.log('API response data:', data)
-      console.log('Summary text:', data.summary)
-
+      
       if (!response.ok) {
+        const data = await response.json()
         throw new Error(data.error || 'An unknown error occurred.')
       }
+      
+      const data = await response.json()
+      console.log('API response data received')
+      console.log('Summary text length:', data.summary?.length || 0)
 
       // Set summary immediately after receiving it
-      console.log('Setting summary in state immediately:', data.summary?.substring(0, 100) + '...')
+      console.log('Setting summary in state immediately')
       setSummary(data.summary)
       
       // Store in localStorage as backup against Hot Reload
       localStorage.setItem('lastSummary', data.summary)
       localStorage.setItem('lastSummaryTime', Date.now().toString())
-      
-      // Verify state was set
-      setTimeout(() => {
-        console.log('Checking summary state after 100ms:', summary?.substring(0, 50) + '...')
-      }, 100)
 
       const processingTime = Date.now() - startTime
       console.log('Processing time:', processingTime, 'ms')
@@ -152,12 +167,13 @@ export default function DashboardPage() {
         is_favorite: false,
       }
 
-      console.log('Saving summary to database:', summaryData)
+      console.log('Saving summary to database...')
       const { error: saveError } = await databaseService.createSummary(summaryData)
       
       if (saveError) {
         console.error('Failed to save summary:', saveError)
         // Don't fail the whole operation if saving fails
+        setSummaryError('Summary created but failed to save to your history')
       } else {
         console.log('Summary saved successfully')
       }
@@ -173,13 +189,20 @@ export default function DashboardPage() {
         }
       }).catch(err => console.error('Failed to track usage:', err))
 
-      // Refresh dashboard data (run in background)
-      console.log('Refreshing dashboard data...')
-      loadDashboardData().catch(err => console.error('Failed to refresh dashboard:', err))
+      // Refresh dashboard data with delay to ensure database consistency
+      console.log('Refreshing dashboard data in 1 second...')
+      setTimeout(() => {
+        loadDashboardData().catch(err => console.error('Failed to refresh dashboard:', err))
+      }, 1000)
 
     } catch (err: any) {
       console.error('Error in handleSummarize:', err)
-      setSummaryError(err.message)
+      
+      if (err.name === 'AbortError') {
+        setSummaryError('The request took too long and was cancelled. Please try again with a shorter video.')
+      } else {
+        setSummaryError(err.message)
+      }
     } finally {
       setIsProcessing(false)
     }
@@ -213,6 +236,15 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              onClick={loadDashboardData}
+              disabled={loading}
+              size="sm"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
             <Button
               variant="outline"
               onClick={() => router.push('/dashboard/history')}

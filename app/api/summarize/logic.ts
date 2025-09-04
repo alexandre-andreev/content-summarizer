@@ -162,6 +162,7 @@ export async function summarizeLogic(videoUrl: string) {
     // Use parts array format to avoid encoding issues
     const result = await model.generateContent({
       contents: [{
+        role: 'user',
         parts: [
           { text: prompt },
           { text: finalTranscript }

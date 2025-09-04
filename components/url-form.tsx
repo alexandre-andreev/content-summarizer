@@ -1,11 +1,12 @@
 'use client'
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Loader2, Link, Sparkles } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Loader2, Link, Sparkles, Clock } from "lucide-react"
 
 interface UrlFormProps {
   onSubmit: (url: string) => void;
@@ -14,6 +15,36 @@ interface UrlFormProps {
 
 export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {
   const [url, setUrl] = useState("")
+  const [progress, setProgress] = useState(0)
+  const [loadingMessage, setLoadingMessage] = useState("")
+
+  // Progress simulation for user feedback
+  useEffect(() => {
+    if (isLoading) {
+      setProgress(0)
+      setLoadingMessage("Получаем транскрипт видео...")
+      
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev < 30) {
+            return prev + 2
+          } else if (prev < 70) {
+            setLoadingMessage("Анализируем содержание...")
+            return prev + 1
+          } else if (prev < 95) {
+            setLoadingMessage("Создаем краткое изложение...")
+            return prev + 0.5
+          }
+          return prev
+        })
+      }, 500)
+
+      return () => clearInterval(progressInterval)
+    } else {
+      setProgress(0)
+      setLoadingMessage("")
+    }
+  }, [isLoading])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +74,22 @@ export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {
               />
             </div>
           </div>
+
+          {isLoading && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center text-muted-foreground">
+                  <Clock className="w-4 h-4 mr-2" />
+                  {loadingMessage}
+                </span>
+                <span className="text-muted-foreground">{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                Обычно это занимает 30-60 секунд. Для длинных видео может потребоваться до 2 минут.
+              </p>
+            </div>
+          )}
 
           <Button
             type="submit"

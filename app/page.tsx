@@ -1,13 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/components/auth/auth-provider'
 import { UrlForm } from "@/components/url-form"
 import { SummaryDisplay } from "@/components/summary-display"
+import { Button } from "@/components/ui/button"
+import { LogIn, UserPlus } from "lucide-react"
 
 export default function HomePage() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
   const [summary, setSummary] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/dashboard')
+    }
+  }, [user, loading, router])
 
   const handleSummarize = async (videoUrl: string) => {
     setIsLoading(true)
@@ -37,6 +50,23 @@ export default function HomePage() {
     }
   }
 
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render main content if user is authenticated (will redirect)
+  if (user) {
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <div className="container mx-auto px-4 py-12">
@@ -53,9 +83,31 @@ export default function HomePage() {
             </svg>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 text-balance">Суммаризация видео</h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-pretty mb-6">
             Получите краткое изложение любого видео на YouTube за секунды. Просто вставьте URL и получите ключевые
             моменты.
+          </p>
+          
+          {/* Authentication buttons for non-authenticated users */}
+          <div className="flex gap-4 justify-center mb-8">
+            <Button 
+              onClick={() => router.push('/auth/login')}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <LogIn className="mr-2 h-4 w-4" />
+              Войти
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => router.push('/auth/register')}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Создать аккаунт
+            </Button>
+          </div>
+          
+          <p className="text-sm text-muted-foreground">
+            Войдите в аккаунт, чтобы сохранять историю ваших запросов
           </p>
         </div>
 

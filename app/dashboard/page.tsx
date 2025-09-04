@@ -178,33 +178,55 @@ export default function DashboardPage() {
         return
       }
       
-      const savePromise = fetch('/api/save-summary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          youtube_url: videoUrl,
-          video_id: videoId,
-          summary_text: data.summary,
-          processing_time: processingTime
+      try {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => {
+          controller.abort()
+        }, 8000)
+        
+        const saveResponse = await fetch('/api/save-summary', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            youtube_url: videoUrl,
+            video_id: videoId,
+            summary_text: data.summary,
+            processing_time: processingTime
+          }),
+          signal: controller.signal
         })
-      })
-      
-      const saveTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Database save timeout')), 8000)
-      })
-      
-      const saveResponse = await Promise.race([savePromise, saveTimeoutPromise]) as Response
-      
-      if (!saveResponse.ok) {
-        const errorData = await saveResponse.json()
-        console.error('Failed to save summary:', errorData)
-        setSummaryError('Summary created but failed to save to your history. You can try again.')
-      } else {
-        const result = await saveResponse.json()
-        console.log('Summary saved successfully:', result.summary?.id)
+        
+        clearTimeout(timeoutId)
+        
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json()
+          console.error('Failed to save summary:', errorData)
+          setSummaryError('Summary created but failed to save to your history. You can try again.')
+        } else {
+          const result = await saveResponse.json()
+          console.log('Summary saved successfully:', result.summary?.id)
+          
+          // Immediately refresh dashboard data after successful save
+          console.log('Refreshing dashboard data immediately...')
+          setTimeout(() => {
+            loadDashboardData().then(() => {
+              console.log('Dashboard data refreshed successfully')
+            }).catch(err => {
+              console.error('Failed to refresh dashboard:', err)
+            })
+          }, 500) // Shorter delay for better user experience
+        }
+      } catch (saveError: any) {
+        if (saveError.name === 'AbortError') {
+          console.error('Database save timeout')
+          setSummaryError('Database save took too long. Your summary may still be saved - try refreshing the page.')
+        } else {
+          console.error('Error saving summary:', saveError)
+          setSummaryError('Summary created but failed to save to your history. You can try again.')
+        }
       }
 
       // Track usage (run in background, don't wait)
@@ -217,12 +239,6 @@ export default function DashboardPage() {
           processing_time: processingTime
         }
       }).catch(err => console.error('Failed to track usage:', err))
-
-      // Refresh dashboard data with delay to ensure database consistency
-      console.log('Refreshing dashboard data in 1 second...')
-      setTimeout(() => {
-        loadDashboardData().catch(err => console.error('Failed to refresh dashboard:', err))
-      }, 1000)
 
     } catch (err: any) {
       console.error('Error in handleSummarize:', err)

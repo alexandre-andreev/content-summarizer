@@ -197,13 +197,19 @@ export const databaseService = {
       })
 
       const dataPromise = (async () => {
+        console.log('Database: Starting dashboard data queries...')
+        
         // Get total summaries count
         const { count: totalSummaries, error: countError } = await supabase
           .from('summaries')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
 
-        if (countError) throw countError
+        if (countError) {
+          console.error('Database: Error getting total count:', countError)
+          throw countError
+        }
+        console.log('Database: Total summaries count:', totalSummaries)
 
         // Get recent summaries (last 5)
         const { data: recentSummaries, error: recentError } = await supabase
@@ -213,7 +219,11 @@ export const databaseService = {
           .order('created_at', { ascending: false })
           .limit(5)
 
-        if (recentError) throw recentError
+        if (recentError) {
+          console.error('Database: Error getting recent summaries:', recentError)
+          throw recentError
+        }
+        console.log('Database: Recent summaries found:', recentSummaries?.length || 0)
 
         // Get favorite count
         const { count: favoriteCount, error: favoriteError } = await supabase
@@ -222,7 +232,11 @@ export const databaseService = {
           .eq('user_id', userId)
           .eq('is_favorite', true)
 
-        if (favoriteError) throw favoriteError
+        if (favoriteError) {
+          console.error('Database: Error getting favorite count:', favoriteError)
+          throw favoriteError
+        }
+        console.log('Database: Favorite summaries count:', favoriteCount)
 
         // Get this week's count
         const oneWeekAgo = new Date()
@@ -234,7 +248,11 @@ export const databaseService = {
           .eq('user_id', userId)
           .gte('created_at', oneWeekAgo.toISOString())
 
-        if (weekError) throw weekError
+        if (weekError) {
+          console.error('Database: Error getting week count:', weekError)
+          throw weekError
+        }
+        console.log('Database: This week summaries count:', thisWeekCount)
 
         return {
           totalSummaries: totalSummaries || 0,

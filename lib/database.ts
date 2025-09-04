@@ -26,13 +26,55 @@ export const databaseService = {
 
   // Summary operations
   async createSummary(summary: Omit<Summary, 'id' | 'created_at'>): Promise<{ summary: Summary | null; error: any }> {
-    const { data: summaryData, error } = await supabase
-      .from('summaries')
-      .insert(summary)
-      .select()
-      .single()
-    
-    return { summary: summaryData, error }
+    try {
+      console.log('Database: Attempting to create summary with data:', {
+        user_id: summary.user_id,
+        youtube_url: summary.youtube_url,
+        video_id: summary.video_id,
+        summary_text_length: summary.summary_text?.length || 0,
+        processing_time: summary.processing_time,
+        is_favorite: summary.is_favorite
+      })
+
+      // Check if user is authenticated
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        console.error('Database: No active session for summary creation')
+        return { summary: null, error: new Error('Authentication required') }
+      }
+      
+      console.log('Database: User session verified for user:', session.user.id)
+      
+      // Ensure the summary belongs to the authenticated user
+      if (summary.user_id !== session.user.id) {
+        console.error('Database: User ID mismatch - session user:', session.user.id, 'summary user:', summary.user_id)
+        return { summary: null, error: new Error('User authentication mismatch') }
+      }
+
+      // Add timeout to prevent hanging
+      const insertPromise = supabase
+        .from('summaries')
+        .insert(summary)
+        .select()
+        .single()
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database insert timeout after 10 seconds')), 10000)
+      })
+
+      const { data: summaryData, error } = await Promise.race([insertPromise, timeoutPromise]) as any
+      
+      if (error) {
+        console.error('Database: Error creating summary:', error)
+        return { summary: null, error }
+      }
+      
+      console.log('Database: Summary created successfully:', summaryData?.id)
+      return { summary: summaryData, error: null }
+    } catch (err: any) {
+      console.error('Database: Exception creating summary:', err.message)
+      return { summary: null, error: err }
+    }
   },
 
   async getUserSummaries(
@@ -162,53 +204,68 @@ export const databaseService = {
     error: any
   }> {
     try {
-      // Get total summaries count
-      const { count: totalSummaries, error: countError } = await supabase
-        .from('summaries')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
+      console.log('Database: Loading dashboard data for user:', userId)
+      
+      // Add timeout wrapper
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Dashboard data timeout after 15 seconds')), 15000)
+      })
 
-      if (countError) throw countError
+      const dataPromise = (async () => {
+        // Get total summaries count
+        const { count: totalSummaries, error: countError } = await supabase
+          .from('summaries')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
 
-      // Get recent summaries (last 5)
-      const { data: recentSummaries, error: recentError } = await supabase
-        .from('summaries')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(5)
+        if (countError) throw countError
 
-      if (recentError) throw recentError
+        // Get recent summaries (last 5)
+        const { data: recentSummaries, error: recentError } = await supabase
+          .from('summaries')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(5)
 
-      // Get favorite count
-      const { count: favoriteCount, error: favoriteError } = await supabase
-        .from('summaries')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('is_favorite', true)
+        if (recentError) throw recentError
 
-      if (favoriteError) throw favoriteError
+        // Get favorite count
+        const { count: favoriteCount, error: favoriteError } = await supabase
+          .from('summaries')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('is_favorite', true)
 
-      // Get this week's count
-      const oneWeekAgo = new Date()
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+        if (favoriteError) throw favoriteError
 
-      const { count: thisWeekCount, error: weekError } = await supabase
-        .from('summaries')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .gte('created_at', oneWeekAgo.toISOString())
+        // Get this week's count
+        const oneWeekAgo = new Date()
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
 
-      if (weekError) throw weekError
+        const { count: thisWeekCount, error: weekError } = await supabase
+          .from('summaries')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('created_at', oneWeekAgo.toISOString())
 
-      return {
-        totalSummaries: totalSummaries || 0,
-        recentSummaries: recentSummaries || [],
-        favoriteCount: favoriteCount || 0,
-        thisWeekCount: thisWeekCount || 0,
-        error: null
-      }
+        if (weekError) throw weekError
+
+        return {
+          totalSummaries: totalSummaries || 0,
+          recentSummaries: recentSummaries || [],
+          favoriteCount: favoriteCount || 0,
+          thisWeekCount: thisWeekCount || 0,
+          error: null
+        }
+      })()
+
+      const result = await Promise.race([dataPromise, timeoutPromise])
+      console.log('Database: Dashboard data loaded successfully')
+      return result as any
+      
     } catch (error) {
+      console.error('Database: Error loading dashboard data:', error)
       return {
         totalSummaries: 0,
         recentSummaries: [],

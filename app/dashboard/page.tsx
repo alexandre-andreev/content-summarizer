@@ -168,12 +168,17 @@ export default function DashboardPage() {
       }
 
       console.log('Saving summary to database...')
-      const { error: saveError } = await databaseService.createSummary(summaryData)
+      const savePromise = databaseService.createSummary(summaryData)
+      const saveTimeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database save timeout')), 8000)
+      })
+      
+      const { error: saveError } = await Promise.race([savePromise, saveTimeoutPromise]) as any
       
       if (saveError) {
         console.error('Failed to save summary:', saveError)
         // Don't fail the whole operation if saving fails
-        setSummaryError('Summary created but failed to save to your history')
+        setSummaryError('Summary created but failed to save to your history. You can try again.')
       } else {
         console.log('Summary saved successfully')
       }

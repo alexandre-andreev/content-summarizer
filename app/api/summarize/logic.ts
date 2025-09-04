@@ -1,73 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Alternative AI provider function
-async function summarizeWithOpenAI(transcriptText: string): Promise<string> {
-  console.log('🤖 OpenAI Step 1: Starting OpenAI summarization...');
-  
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  console.log('🔑 OpenAI API key present:', !!openaiApiKey);
-  
-  if (!openaiApiKey || openaiApiKey === 'ДОБАВЬТЕ_ВАШ_OPENAI_КЛЮЧ_ЗДЕСЬ') {
-    // If no OpenAI key configured, return a placeholder summary
-    console.log('🤖 OpenAI Step 2: API key not configured, returning placeholder summary');
-    const cleanText = sanitizeTextForAPI(transcriptText);
-    return `Краткое содержание:\n\nВидео содержит ${cleanText.length} символов текста. К сожалению, автоматическое резюмирование временно недоступно из-за ограничений API. \n\nДля получения полного резюме необходимо настроить OpenAI API ключ.\n\n[Это автоматически сгенерированное сообщение]`;
-  }
-
-  console.log('🤖 OpenAI Step 3: Sanitizing text...');
-  // Additional safeguard - ensure text is clean and properly encoded
-  const cleanText = sanitizeTextForAPI(transcriptText);
-  console.log('🤖 OpenAI Step 4: Text sanitized, length:', cleanText.length);
-  
-  // Ensure the text is properly encoded for JSON
-  const requestBody = {
-    model: 'gpt-3.5-turbo',
-    messages: [
-      {
-        role: 'system',
-        content: 'You are an expert in summarizing YouTube videos. Your task is to provide a concise and clear summary of video transcripts. Highlight the main points and key takeaways. The summary should be in Russian.'
-      },
-      {
-        role: 'user',
-        content: `Please summarize this YouTube video transcript:\n\n${cleanText}`
-      }
-    ],
-    max_tokens: 1000,
-    temperature: 0.7
-  };
-  
-  console.log('🤖 OpenAI Step 5: Request body prepared');
-  
-  // Convert to JSON with proper encoding
-  const bodyString = JSON.stringify(requestBody);
-  console.log('🤖 OpenAI Step 6: Making API request...');
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json; charset=utf-8',
-    },
-    body: bodyString
-  });
-
-  console.log('🤖 OpenAI Step 7: Response received, status:', response.status);
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('❌ OpenAI API error:', response.status, errorText);
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-  }
-
-  console.log('🤖 OpenAI Step 8: Parsing response...');
-  const data = await response.json();
-  console.log('🤖 OpenAI Step 9: Response parsed successfully');
-  
-  const summary = data.choices[0].message.content;
-  console.log('✅ OpenAI summary completed, length:', summary?.length || 0);
-  return summary;
-}
-
 function getYoutubeId(url: string): string | null {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
@@ -195,7 +127,7 @@ export async function summarizeLogic(videoUrl: string) {
 
   console.log(`🧬 Final transcript length: ${finalTranscript.length} characters`);
 
-  // Try Gemini first, fallback to OpenAI if blocked
+  // Use Google Gemini API for summarization
   try {
     console.log('🤖 Step 1: Trying Gemini API...');
     console.log('🔑 Gemini API key present:', !!process.env.GEMINI_API_KEY);
@@ -237,40 +169,28 @@ export async function summarizeLogic(videoUrl: string) {
     console.log('✅ Gemini API succeeded, summary length:', summary?.length || 0);
     return summary;
   } catch (geminiError: any) {
-    console.log('❌ Gemini failed, error details:', {
+    console.error('❌ Gemini API failed:', {
       message: geminiError.message,
       name: geminiError.name,
       stack: geminiError.stack?.substring(0, 500) + '...'
     });
     
-    // Check for various error conditions
+    // Provide informative error message based on the type of error
     const errorMessage = geminiError.message || '';
-    const shouldTryOpenAI = 
-      errorMessage.includes('location is not supported') || 
-      errorMessage.includes('User location') ||
-      errorMessage.includes('ByteString') ||
-      errorMessage.includes('character') ||
-      errorMessage.includes('encoding');
     
-    if (shouldTryOpenAI) {
-      console.log('🔄 Using OpenAI due to Gemini restriction/encoding issue');
-      console.log('🤖 Step 8: Trying OpenAI fallback...');
-      return await summarizeWithOpenAI(finalTranscript);
+    if (errorMessage.includes('location is not supported') || errorMessage.includes('User location')) {
+      throw new Error('Невозможно получить доступ к Google Gemini API из вашего региона. Попробуйте использовать VPN или свяжитесь с администратором.');
     }
     
-    // If it's other error, still try OpenAI as fallback
-    try {
-      console.log('🔄 Trying OpenAI as general fallback...');
-      console.log('🤖 Step 8: Calling OpenAI service...');
-      const openaiResult = await summarizeWithOpenAI(finalTranscript);
-      console.log('✅ OpenAI fallback succeeded');
-      return openaiResult;
-    } catch (openaiError: any) {
-      console.error('❌ Both AI services failed');
-      console.error('Gemini error:', geminiError.message);
-      console.error('OpenAI error:', openaiError.message);
-      // If both fail, throw the original Gemini error
-      throw new Error(`Both AI services failed. Gemini: ${geminiError.message}. OpenAI: ${openaiError.message}`);
+    if (errorMessage.includes('API key')) {
+      throw new Error('Ошибка ключа API. Пожалуйста, проверьте конфигурацию Google Gemini API.');
     }
+    
+    if (errorMessage.includes('timeout')) {
+      throw new Error('Превышено время ожидания ответа от AI API. Попробуйте ещё раз.');
+    }
+    
+    // Generic error message for other cases
+    throw new Error(`Ошибка при создании резюме: ${errorMessage}. Попробуйте ещё раз одно видео.`);
   }
 }

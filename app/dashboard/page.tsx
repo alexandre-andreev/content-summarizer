@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
 import { databaseService } from '@/lib/database'
+import { supabase } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -168,19 +169,42 @@ export default function DashboardPage() {
       }
 
       console.log('Saving summary to database...')
-      const savePromise = databaseService.createSummary(summaryData)
+      
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        console.error('No session token available')
+        setSummaryError('Authentication error. Please refresh the page and try again.')
+        return
+      }
+      
+      const savePromise = fetch('/api/save-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          youtube_url: videoUrl,
+          video_id: videoId,
+          summary_text: data.summary,
+          processing_time: processingTime
+        })
+      })
+      
       const saveTimeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Database save timeout')), 8000)
       })
       
-      const { error: saveError } = await Promise.race([savePromise, saveTimeoutPromise]) as any
+      const saveResponse = await Promise.race([savePromise, saveTimeoutPromise]) as Response
       
-      if (saveError) {
-        console.error('Failed to save summary:', saveError)
-        // Don't fail the whole operation if saving fails
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json()
+        console.error('Failed to save summary:', errorData)
         setSummaryError('Summary created but failed to save to your history. You can try again.')
       } else {
-        console.log('Summary saved successfully')
+        const result = await saveResponse.json()
+        console.log('Summary saved successfully:', result.summary?.id)
       }
 
       // Track usage (run in background, don't wait)

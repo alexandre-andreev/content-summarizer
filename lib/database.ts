@@ -36,21 +36,6 @@ export const databaseService = {
         is_favorite: summary.is_favorite
       })
 
-      // Check if user is authenticated
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError || !session) {
-        console.error('Database: No active session for summary creation')
-        return { summary: null, error: new Error('Authentication required') }
-      }
-      
-      console.log('Database: User session verified for user:', session.user.id)
-      
-      // Ensure the summary belongs to the authenticated user
-      if (summary.user_id !== session.user.id) {
-        console.error('Database: User ID mismatch - session user:', session.user.id, 'summary user:', summary.user_id)
-        return { summary: null, error: new Error('User authentication mismatch') }
-      }
-
       // Add timeout to prevent hanging
       const insertPromise = supabase
         .from('summaries')

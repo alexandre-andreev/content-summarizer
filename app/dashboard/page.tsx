@@ -40,6 +40,46 @@ export default function DashboardPage() {
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
 
+  // Background save function
+  const saveSummaryToDatabase = async (summaryData: {
+    youtube_url: string
+    video_id: string
+    summary_text: string
+    processing_time: number
+  }, accessToken: string): Promise<boolean> => {
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+      }, 10000) // 10 second timeout for background save
+      
+      const saveResponse = await fetch('/api/save-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(summaryData),
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (saveResponse.ok) {
+        const result = await saveResponse.json()
+        console.log('Background save successful:', result.summary?.id)
+        return true
+      } else {
+        const errorData = await saveResponse.json()
+        console.error('Background save failed:', errorData)
+        return false
+      }
+    } catch (error: any) {
+      console.error('Background save error:', error.message)
+      return false
+    }
+  }
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
@@ -143,7 +183,7 @@ export default function DashboardPage() {
       console.log('API response data received')
       console.log('Summary text length:', data.summary?.length || 0)
 
-      // Set summary immediately after receiving it
+      // Set summary immediately after receiving it - SHOW TO USER FIRST
       console.log('Setting summary in state immediately')
       setSummary(data.summary)
       
@@ -158,87 +198,38 @@ export default function DashboardPage() {
       const videoId = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/)?.[1] || ''
       console.log('Extracted video ID:', videoId)
 
-      // Save summary to database
-      const summaryData = {
-        user_id: user.id,
-        youtube_url: videoUrl,
-        video_id: videoId,
-        summary_text: data.summary,
-        processing_time: processingTime,
-        is_favorite: false,
-      }
-
-      console.log('Saving summary to database...')
+      // Save summary to database IN BACKGROUND (don't wait for it)
+      console.log('Saving summary to database in background...')
       
       // Get the current session token
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
-        console.error('No session token available')
-        setSummaryError('Authentication error. Please refresh the page and try again.')
-        return
-      }
-      
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => {
-          controller.abort()
-        }, 8000)
-        
-        const saveResponse = await fetch('/api/save-summary', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            youtube_url: videoUrl,
-            video_id: videoId,
-            summary_text: data.summary,
-            processing_time: processingTime
-          }),
-          signal: controller.signal
+        console.warn('No session token available - summary won\'t be saved to history')
+      } else {
+        // Save in background without blocking UI
+        saveSummaryToDatabase({
+          youtube_url: videoUrl,
+          video_id: videoId,
+          summary_text: data.summary,
+          processing_time: processingTime
+        }, session.access_token).then((success) => {
+          if (success) {
+            console.log('Background save completed successfully')
+            // Refresh dashboard data after successful background save
+            setTimeout(() => {
+              loadDashboardData().then(() => {
+                console.log('Dashboard data refreshed after background save')
+              }).catch(err => {
+                console.error('Failed to refresh dashboard after background save:', err)
+              })
+            }, 500)
+          } else {
+            console.error('Background save failed - summary visible but not in history')
+          }
         })
-        
-        clearTimeout(timeoutId)
-        
-        if (!saveResponse.ok) {
-          const errorData = await saveResponse.json()
-          console.error('Failed to save summary:', errorData)
-          setSummaryError('Summary created but failed to save to your history. You can try again.')
-        } else {
-          const result = await saveResponse.json()
-          console.log('Summary saved successfully:', result.summary?.id)
-          
-          // Immediately refresh dashboard data after successful save
-          console.log('Refreshing dashboard data immediately...')
-          setTimeout(() => {
-            loadDashboardData().then(() => {
-              console.log('Dashboard data refreshed successfully')
-            }).catch(err => {
-              console.error('Failed to refresh dashboard:', err)
-            })
-          }, 500) // Shorter delay for better user experience
-        }
-      } catch (saveError: any) {
-        if (saveError.name === 'AbortError') {
-          console.error('Database save timeout')
-          setSummaryError('Database save took too long. Your summary may still be saved - try refreshing the page.')
-        } else {
-          console.error('Error saving summary:', saveError)
-          setSummaryError('Summary created but failed to save to your history. You can try again.')
-        }
       }
 
-      // Track usage (run in background, don't wait)
-      console.log('Tracking usage...')
-      databaseService.trackUsage({
-        user_id: user.id,
-        action: 'summarize',
-        metadata: { 
-          video_url: videoUrl,
-          processing_time: processingTime
-        }
-      }).catch(err => console.error('Failed to track usage:', err))
+
 
     } catch (err: any) {
       console.error('Error in handleSummarize:', err)

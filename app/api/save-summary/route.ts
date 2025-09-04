@@ -56,7 +56,53 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Summary text cannot be empty' }, { status: 400 })
     }
 
-    console.log('✅ All validations passed. Saving to database...')
+    console.log('✅ All validations passed.');
+
+    // Check if user exists in public.users table, create if missing
+    console.log('🔍 Checking if user exists in public.users...');
+    const { data: existingUser, error: userCheckError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+    
+    if (userCheckError && userCheckError.code === 'PGRST116') {
+      console.log('👤 User not found in public.users, creating automatically...');
+      
+      // Create user record automatically
+      const userMetadata = user.user_metadata || {};
+      const { error: createUserError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          id: user.id,
+          email: user.email,
+          display_name: userMetadata.display_name || userMetadata.name || null,
+          avatar_url: userMetadata.avatar_url || userMetadata.picture || null,
+          created_at: user.created_at,
+          last_login: new Date().toISOString(),
+          is_active: true
+        });
+      
+      if (createUserError) {
+        console.error('❌ Failed to create user record:', createUserError);
+        return NextResponse.json({ 
+          error: 'Failed to create user record', 
+          details: createUserError.message 
+        }, { status: 500 });
+      }
+      
+      console.log('✅ User record created automatically');
+    } else if (userCheckError) {
+      console.error('❌ Error checking user existence:', userCheckError);
+      return NextResponse.json({ 
+        error: 'Database error', 
+        details: userCheckError.message 
+      }, { status: 500 });
+    } else {
+      console.log('✅ User exists in public.users');
+    }
+
+    console.log('💾 Saving to database...');
     console.log('Using supabase URL:', supabaseUrl)
     console.log('Service role key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 

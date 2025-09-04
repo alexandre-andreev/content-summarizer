@@ -8,57 +8,107 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('=== SAVE SUMMARY API STARTED ===')
+    
     // Get the authorization header
     const authHeader = req.headers.get('authorization')
+    console.log('Auth header present:', !!authHeader)
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization token provided')
       return NextResponse.json({ error: 'No authorization token provided' }, { status: 401 })
     }
 
     const token = authHeader.replace('Bearer ', '')
+    console.log('Token length:', token.length)
     
     // Verify the token with the regular Supabase client
     const supabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    console.log('Supabase client created for token verification')
+    
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
-      console.error('Token verification failed:', authError)
+      console.error('❌ Token verification failed:', authError?.message || 'No user found')
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
+    
+    console.log('✅ Token verified for user:', user.id)
 
     const body = await req.json()
     const { youtube_url, video_id, summary_text, processing_time } = body
+    
+    console.log('Request body received:', {
+      youtube_url: youtube_url?.substring(0, 50) + '...',
+      video_id,
+      summary_text_length: summary_text?.length || 0,
+      processing_time
+    })
 
     // Validate required fields
     if (!youtube_url || !video_id || !summary_text) {
+      console.error('❌ Missing required fields:', { youtube_url: !!youtube_url, video_id: !!video_id, summary_text: !!summary_text })
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    
+    if (!summary_text || summary_text.trim().length === 0) {
+      console.error('❌ Summary text is empty or whitespace only')
+      return NextResponse.json({ error: 'Summary text cannot be empty' }, { status: 400 })
+    }
 
-    console.log('API: Saving summary for user:', user.id)
+    console.log('✅ All validations passed. Saving to database...')
+    console.log('Using supabase URL:', supabaseUrl)
+    console.log('Service role key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
     // Save to database using service role (bypasses RLS)
+    const insertData = {
+      user_id: user.id,
+      youtube_url,
+      video_id,
+      summary_text: summary_text.trim(),
+      processing_time: processing_time || null,
+      is_favorite: false
+    }
+    
+    console.log('Insert data prepared:', {
+      user_id: insertData.user_id,
+      youtube_url: insertData.youtube_url.substring(0, 50) + '...',
+      video_id: insertData.video_id,
+      summary_text_length: insertData.summary_text.length,
+      processing_time: insertData.processing_time,
+      is_favorite: insertData.is_favorite
+    })
+    
     const { data: summary, error } = await supabaseAdmin
       .from('summaries')
-      .insert({
-        user_id: user.id,
-        youtube_url,
-        video_id,
-        summary_text,
-        processing_time: processing_time || null,
-        is_favorite: false
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
-      console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to save summary' }, { status: 500 })
+      console.error('❌ Database insert error:', error)
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      })
+      return NextResponse.json({ error: 'Failed to save summary', details: error.message }, { status: 500 })
     }
 
-    console.log('API: Summary saved successfully:', summary.id)
+    console.log('✅ Summary saved successfully!')
+    console.log('Saved summary details:', {
+      id: summary.id,
+      user_id: summary.user_id,
+      created_at: summary.created_at,
+      summary_length: summary.summary_text?.length || 0
+    })
+    
     return NextResponse.json({ summary, success: true })
 
   } catch (error) {
-    console.error('Error in save-summary API:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('❌ Unexpected error in save-summary API:', error)
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    return NextResponse.json({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }

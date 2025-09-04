@@ -1,0 +1,34 @@
+# Vercel Environment Variables Configuration
+# Скопируйте эти переменные в Vercel Dashboard → Settings → Environment Variables
+
+# ========================================
+# GOOGLE GEMINI AI API
+# ========================================
+GEMINI_API_KEY=AIzaSyD3ZVaL9WlRNT6hznb0dsdJnLEQn_5kv6s
+
+# ========================================
+# YOUTUBE TRANSCRIPT API (RapidAPI)
+# ========================================
+TRANSCRIPT_API_KEY=68b1dbcf6e5abb7435211898
+
+# ========================================
+# SUPABASE DATABASE CONFIGURATION
+# ========================================
+NEXT_PUBLIC_SUPABASE_URL=https://fyetqamckztihwkukpzc.supabase.co
+
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5ZXRxYW1ja3p0aWh3a3VrcHpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5OTgzMTksImV4cCI6MjA3MjU3NDMxOX0.m9P_6KDYNnzYKjF8HuUSJ2mvjFlssljlsVAvHcO29o4
+
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5ZXRxYW1ja3p0aWh3a3VrcHpjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1Njk5ODMxOSwiZXhwIjoyMDcyNTc0MzE5fQ.bVmbt1SCOihQo9k9eo0c7RsaLepnv_bK3mUdDWWNmPI
+
+# ========================================
+# ИНСТРУКЦИИ ПО ДОБАВЛЕНИЮ В VERCEL:
+# ========================================
+# 1. Откройте Vercel Dashboard
+# 2. Перейдите в проект content-summarizer
+# 3. Settings → Environment Variables
+# 4. Добавьте каждую переменную по отдельности:
+#    - Name: GEMINI_API_KEY
+#    - Value: AIzaSyD3ZVaL9WlRNT6hznb0dsdJnLEQn_5kv6s
+#    - Environment: Production, Preview, Development (выберите все)
+# 5. Повторите для всех переменных
+# 6. После добавления всех переменных нажмите "Redeploy"

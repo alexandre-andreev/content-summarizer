@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
-import { databaseService } from '@/lib/database'
 import { supabase } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -125,33 +124,73 @@ export default function DashboardPage() {
     setError(null)
 
     try {
-      console.log('Loading dashboard data for user:', user.id)
-      const data = await databaseService.getDashboardData(user.id)
-      console.log('Dashboard data received:', data)
+      console.log('Loading dashboard data via API for user:', user.id)
       
-      if (data.error) {
-        console.error('Dashboard data error:', data.error)
-        setError(data.error.message || 'Ошибка загрузки данных')
-        // Set empty data to allow UI to remain functional
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error('Нет активной сессии пользователя')
+      }
+
+      // Call the optimized dashboard API endpoint
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+      }, 10000) // 10 second client-side timeout
+
+      const response = await fetch('/api/dashboard', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('Dashboard API error:', errorData)
+        
+        // Set default data even on error to keep UI functional
         setDashboardData({
           totalSummaries: 0,
           recentSummaries: [],
           favoriteCount: 0,
           thisWeekCount: 0
         })
-      } else {
-        console.log('Setting dashboard data:', {
-          totalSummaries: data.totalSummaries,
-          recentSummaries: data.recentSummaries?.length || 0,
-          favoriteCount: data.favoriteCount,
-          thisWeekCount: data.thisWeekCount
-        })
-        setDashboardData(data)
-        setError(null) // Clear any previous errors
+        
+        setError(errorData.error || 'Ошибка загрузки данных панели')
+        return
       }
+
+      const result = await response.json()
+      console.log('Dashboard API response received:', result)
+      
+      if (result.success && result.data) {
+        console.log('Setting dashboard data from API:', {
+          totalSummaries: result.data.totalSummaries,
+          recentSummaries: result.data.recentSummaries?.length || 0,
+          favoriteCount: result.data.favoriteCount,
+          thisWeekCount: result.data.thisWeekCount
+        })
+        setDashboardData(result.data)
+        setError(null) // Clear any previous errors
+      } else {
+        // Even if not successful, use the provided data to keep UI functional
+        setDashboardData(result.data || {
+          totalSummaries: 0,
+          recentSummaries: [],
+          favoriteCount: 0,
+          thisWeekCount: 0
+        })
+        setError(result.error || 'Неизвестная ошибка API панели управления')
+      }
+      
     } catch (err: any) {
-      console.error('Error loading dashboard data:', err)
-      setError(err.message || 'Не удалось загрузить данные панели')
+      console.error('Error loading dashboard data via API:', err)
+      
       // Set empty data to allow UI to remain functional
       setDashboardData({
         totalSummaries: 0,
@@ -159,6 +198,12 @@ export default function DashboardPage() {
         favoriteCount: 0,
         thisWeekCount: 0
       })
+      
+      if (err.name === 'AbortError') {
+        setError('Превышено время ожидания загрузки данных панели')
+      } else {
+        setError(err.message || 'Не удалось загрузить данные панели управления')
+      }
     } finally {
       setLoading(false)
       setRefreshing(false)

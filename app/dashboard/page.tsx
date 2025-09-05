@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { UrlForm } from '@/components/url-form'
 import { SummaryDisplay } from '@/components/summary-display'
+import { AppRecovery } from '@/components/app-recovery'
+import { PerformanceMonitor } from '@/components/performance-monitor'
 import { 
   BarChart3, 
   FileText, 
@@ -47,6 +49,7 @@ export default function DashboardPage() {
     summaryText: string;
     processingTime: number;
   } | null>(null)
+  const [isTabVisible, setIsTabVisible] = useState(true)
 
   // Background save function
   const saveSummaryToDatabase = async (summaryData: {
@@ -120,6 +123,53 @@ export default function DashboardPage() {
       }
     }
   }, [])
+
+  // Handle tab visibility changes to prevent browser suspension issues
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden
+      setIsTabVisible(isVisible)
+      
+      if (isVisible) {
+        console.log('Tab became visible - checking app state')
+        
+        // If tab was hidden and now visible, refresh data if needed
+        if (user && !loading && !isProcessing) {
+          console.log('Refreshing dashboard data after tab became visible')
+          loadDashboardData(true)
+        }
+      } else {
+        console.log('Tab became hidden')
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // Also handle window focus/blur for additional browser support
+    const handleFocus = () => {
+      console.log('Window focused - ensuring app is responsive')
+      if (user && !loading && !isProcessing) {
+        // Small delay to allow browser to stabilize
+        setTimeout(() => {
+          console.log('Performing focus recovery check')
+          loadDashboardData(true)
+        }, 100)
+      }
+    }
+
+    const handleBlur = () => {
+      console.log('Window blurred')
+    }
+
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('blur', handleBlur)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [user, loading, isProcessing])
 
   const loadDashboardData = async (isRefresh = false) => {
     if (!user) return
@@ -235,6 +285,7 @@ export default function DashboardPage() {
       // Call the API to generate summary with timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
+        console.warn('Summarization taking too long, aborting...')
         controller.abort()
       }, 150000) // 2.5 minutes client-side timeout
 
@@ -348,6 +399,27 @@ export default function DashboardPage() {
     }
   }
 
+  const handleAppRecovery = async () => {
+    console.log('Performing app recovery...')
+    
+    // Reset all states to clean state
+    setLoading(false)
+    setRefreshing(false)
+    setIsProcessing(false)
+    setIsSaving(false)
+    setCanSave(false)
+    setError(null)
+    setSummaryError(null)
+    setLastGeneratedSummary(null)
+    
+    // Force reload dashboard data
+    if (user) {
+      await loadDashboardData(true)
+    }
+    
+    console.log('App recovery completed')
+  }
+
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center">
@@ -361,6 +433,8 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
+      <PerformanceMonitor onPerformanceIssue={(issue) => console.warn('Performance issue:', issue)} />
+      <AppRecovery onRecover={handleAppRecovery} />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">

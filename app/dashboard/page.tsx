@@ -484,7 +484,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {loading ? (
-                  Array.from({ length: 2 }).map((_, i) => (
+                  Array.from({ length: 3 }).map((_, i) => (
                     <div key={i} className="space-y-2">
                       <Skeleton className="h-4 w-full" />
                       <Skeleton className="h-3 w-3/4" />

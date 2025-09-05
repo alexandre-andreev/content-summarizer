@@ -18,8 +18,7 @@ import {
   Calendar,
   LogOut,
   User,
-  History,
-  Loader2
+  History
 } from 'lucide-react'
 import type { Summary } from '@/lib/supabase/client'
 
@@ -504,32 +503,14 @@ export default function DashboardPage() {
           {/* Create New Summary Form */}
           <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
 
-          {/* Action Buttons Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* View All Descriptions Button - Aligned with UrlForm submit button */}
+          <div className="flex justify-center">
             <Button
               onClick={() => router.push('/dashboard/history')}
-              className="h-12 text-base font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+              className="h-12 text-base font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground px-8"
             >
               <History className="mr-2 h-4 w-4" />
               Посмотреть все описания
-            </Button>
-            
-            <Button
-              disabled={!canSave || isSaving}
-              onClick={handleSaveToHistory}
-              className="h-12 text-base font-semibold bg-green-600 hover:bg-green-700 text-white"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Сохранение...
-                </>
-              ) : (
-                <>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Создать краткое описание
-                </>
-              )}
             </Button>
           </div>
 

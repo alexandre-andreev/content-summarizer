@@ -56,13 +56,13 @@ export async function GET(req: NextRequest) {
           .eq('user_id', user.id)
           .abortSignal(controller.signal),
         
-        // Get recent summaries (last 5)
+        // Get recent summaries (last 3 for optimal loading)
         supabaseAdmin
           .from('summaries')
           .select('id, youtube_url, video_id, video_title, summary_text, created_at, is_favorite, processing_time')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(5)
+          .limit(3)
           .abortSignal(controller.signal),
         
         // Get favorite count

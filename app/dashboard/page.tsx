@@ -39,6 +39,14 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [canSave, setCanSave] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastGeneratedSummary, setLastGeneratedSummary] = useState<{
+    videoUrl: string;
+    videoId: string;
+    summaryText: string;
+    processingTime: number;
+  } | null>(null)
 
   // Background save function
   const saveSummaryToDatabase = async (summaryData: {
@@ -216,6 +224,8 @@ export default function DashboardPage() {
     setIsProcessing(true)
     setSummaryError(null)
     setSummary(null)
+    setCanSave(false) // Reset save button state
+    setLastGeneratedSummary(null) // Clear previous summary data
 
     const startTime = Date.now()
 
@@ -264,36 +274,16 @@ export default function DashboardPage() {
       const videoId = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/)?.[1] || ''
       console.log('Extracted video ID:', videoId)
 
-      // Save summary to database IN BACKGROUND (don't wait for it)
-      console.log('Saving summary to database in background...')
+      // Store summary data for later saving, enable save button
+      setLastGeneratedSummary({
+        videoUrl,
+        videoId,
+        summaryText: data.summary,
+        processingTime
+      })
+      setCanSave(true)
       
-      // Get the current session token
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) {
-        console.warn('No session token available - summary won\'t be saved to history')
-      } else {
-        // Save in background without blocking UI
-        saveSummaryToDatabase({
-          youtube_url: videoUrl,
-          video_id: videoId,
-          summary_text: data.summary,
-          processing_time: processingTime
-        }, session.access_token).then((success) => {
-          if (success) {
-            console.log('Background save completed successfully')
-            // Refresh dashboard data after successful background save with 1-second delay
-            setTimeout(() => {
-              loadDashboardData(true).then(() => {
-                console.log('Dashboard data refreshed after background save')
-              }).catch(err => {
-                console.error('Failed to refresh dashboard after background save:', err)
-              })
-            }, 1000) // 1-second delay as per memory requirement
-          } else {
-            console.error('Background save failed - summary visible but not in history')
-          }
-        })
-      }
+      console.log('Summary ready for saving - user can now click Save button')
 
 
 
@@ -313,6 +303,49 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     await signOut()
     router.push('/')
+  }
+
+  const handleSaveToHistory = async () => {
+    if (!lastGeneratedSummary || !user || isSaving) return
+
+    setIsSaving(true)
+    console.log('Saving summary to database and updating dashboard...')
+
+    try {
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        console.error('No session token available')
+        return
+      }
+
+      // Save summary to database
+      const success = await saveSummaryToDatabase({
+        youtube_url: lastGeneratedSummary.videoUrl,
+        video_id: lastGeneratedSummary.videoId,
+        summary_text: lastGeneratedSummary.summaryText,
+        processing_time: lastGeneratedSummary.processingTime
+      }, session.access_token)
+
+      if (success) {
+        console.log('Summary saved successfully')
+        
+        // Refresh dashboard data to update stats and recent summaries
+        await loadDashboardData(true)
+        
+        // Reset save state
+        setCanSave(false)
+        setLastGeneratedSummary(null)
+        
+        console.log('Dashboard updated with new summary')
+      } else {
+        console.error('Failed to save summary')
+      }
+    } catch (error) {
+      console.error('Error saving summary:', error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (authLoading || !user) {
@@ -436,7 +469,10 @@ export default function DashboardPage() {
             <SummaryDisplay 
               summary={summary} 
               error={summaryError} 
-              isLoading={isProcessing} 
+              isLoading={isProcessing}
+              canSave={canSave}
+              isSaving={isSaving}
+              onSave={handleSaveToHistory}
             />
           </div>
 
@@ -448,7 +484,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {loading ? (
-                  Array.from({ length: 3 }).map((_, i) => (
+                  Array.from({ length: 2 }).map((_, i) => (
                     <div key={i} className="space-y-2">
                       <Skeleton className="h-4 w-full" />
                       <Skeleton className="h-3 w-3/4" />

@@ -3,16 +3,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertCircle, FileText } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { AlertCircle, FileText, Save, Loader2 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 
 interface SummaryDisplayProps {
   summary: string | null;
   error: string | null;
   isLoading: boolean;
+  canSave?: boolean;
+  isSaving?: boolean;
+  onSave?: () => void;
 }
 
-export function SummaryDisplay({ summary, error, isLoading }: SummaryDisplayProps) {
+export function SummaryDisplay({ summary, error, isLoading, canSave = false, isSaving = false, onSave }: SummaryDisplayProps) {
 
   if (isLoading) {
     return (
@@ -49,8 +53,28 @@ export function SummaryDisplay({ summary, error, isLoading }: SummaryDisplayProp
 
   return (
     <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-xl font-bold text-foreground">Краткое изложение</CardTitle>
+        {canSave && onSave && (
+          <Button 
+            onClick={onSave}
+            disabled={isSaving}
+            size="sm"
+            className="ml-4"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Сохранение...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Сохранить
+              </>
+            )}
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="prose prose-sm max-w-none dark:prose-invert">

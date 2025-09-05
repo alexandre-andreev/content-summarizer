@@ -207,13 +207,13 @@ export const databaseService = {
             .select('id', { count: 'exact', head: true })
             .eq('user_id', userId),
           
-          // Get recent summaries (last 5)
+          // Get recent summaries (last 2 for faster loading)
           supabase
             .from('summaries')
             .select('*')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
-            .limit(5),
+            .limit(2),
           
           // Get favorite count
           supabase

@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AppRecovery } from '@/components/app-recovery'
 import { PerformanceMonitor } from '@/components/performance-monitor'
+import { BrowserTabManager } from '@/components/browser-tab-manager'
+import { EmergencyRecovery } from '@/components/emergency-recovery'
 import { 
   ArrowLeft, 
   Search, 
@@ -191,8 +193,6 @@ export default function HistoryPage() {
       }
     }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    
     // Also handle window focus/blur for additional browser support
     const handleFocus = () => {
       console.log('History page window focused - ensuring data is current')
@@ -209,13 +209,31 @@ export default function HistoryPage() {
       console.log('History page window blurred')
     }
 
+    // Handle corruption events from BrowserTabManager
+    const handlePageCorrupted = (event: CustomEvent) => {
+      console.error('🚨 History page corruption detected:', event.detail)
+      handleHistoryRecovery()
+    }
+
+    const handlePageSlow = (event: CustomEvent) => {
+      console.warn('⚠️ History page performance degraded:', event.detail)
+      if (user && !loading) {
+        loadSummaries()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
+    window.addEventListener('pageCorrupted', handlePageCorrupted as EventListener)
+    window.addEventListener('pageSlow', handlePageSlow as EventListener)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('pageCorrupted', handlePageCorrupted as EventListener)
+      window.removeEventListener('pageSlow', handlePageSlow as EventListener)
     }
   }, [user, loading])
 
@@ -304,8 +322,10 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
+      <BrowserTabManager />
       <PerformanceMonitor onPerformanceIssue={(issue) => console.warn('History page performance issue:', issue)} />
       <AppRecovery onRecover={handleHistoryRecovery} />
+      <EmergencyRecovery />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">

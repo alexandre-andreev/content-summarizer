@@ -12,6 +12,8 @@ import { UrlForm } from '@/components/url-form'
 import { SummaryDisplay } from '@/components/summary-display'
 import { AppRecovery } from '@/components/app-recovery'
 import { PerformanceMonitor } from '@/components/performance-monitor'
+import { BrowserTabManager } from '@/components/browser-tab-manager'
+import { EmergencyRecovery } from '@/components/emergency-recovery'
 import { 
   BarChart3, 
   FileText, 
@@ -143,8 +145,6 @@ export default function DashboardPage() {
       }
     }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    
     // Also handle window focus/blur for additional browser support
     const handleFocus = () => {
       console.log('Window focused - ensuring app is responsive')
@@ -161,13 +161,31 @@ export default function DashboardPage() {
       console.log('Window blurred')
     }
 
+    // Handle corruption events from BrowserTabManager
+    const handlePageCorrupted = (event: CustomEvent) => {
+      console.error('🚨 Dashboard page corruption detected:', event.detail)
+      handleAppRecovery()
+    }
+
+    const handlePageSlow = (event: CustomEvent) => {
+      console.warn('⚠️ Dashboard page performance degraded:', event.detail)
+      if (user && !loading && !isProcessing) {
+        loadDashboardData(true)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
+    window.addEventListener('pageCorrupted', handlePageCorrupted as EventListener)
+    window.addEventListener('pageSlow', handlePageSlow as EventListener)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('pageCorrupted', handlePageCorrupted as EventListener)
+      window.removeEventListener('pageSlow', handlePageSlow as EventListener)
     }
   }, [user, loading, isProcessing])
 
@@ -433,8 +451,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
+      <BrowserTabManager />
       <PerformanceMonitor onPerformanceIssue={(issue) => console.warn('Performance issue:', issue)} />
       <AppRecovery onRecover={handleAppRecovery} />
+      <EmergencyRecovery />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">

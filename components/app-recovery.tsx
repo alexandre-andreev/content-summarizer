@@ -93,25 +93,25 @@ export function AppRecovery({ onRecover }: AppRecoveryProps) {
   }
 
   return (
-    <Alert variant=\"destructive\" className=\"fixed top-4 left-4 right-4 z-50 max-w-md mx-auto\">
-      <AlertTriangle className=\"h-4 w-4\" />
-      <AlertDescription className=\"flex items-center justify-between\">
+    <Alert variant="destructive" className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription className="flex items-center justify-between">
         <span>Приложение может зависнуть</span>
         <Button
-          size=\"sm\"
-          variant=\"outline\"
+          size="sm"
+          variant="outline"
           onClick={handleRecover}
           disabled={isRecovering}
-          className=\"ml-2\"
+          className="ml-2"
         >
           {isRecovering ? (
             <>
-              <RefreshCw className=\"mr-1 h-3 w-3 animate-spin\" />
+              <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
               Восстановление...
             </>
           ) : (
             <>
-              <RefreshCw className=\"mr-1 h-3 w-3\" />
+              <RefreshCw className="mr-1 h-3 w-3" />
               Восстановить
             </>
           )}

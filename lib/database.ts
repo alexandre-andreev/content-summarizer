@@ -191,74 +191,78 @@ export const databaseService = {
     try {
       console.log('Database: Loading dashboard data for user:', userId)
       
-      // Add timeout wrapper
+      // Add timeout wrapper - reduced from 15s to 8s for better UX
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Dashboard data timeout after 15 seconds')), 15000)
+        setTimeout(() => reject(new Error('Dashboard data timeout after 8 seconds')), 8000)
       })
 
       const dataPromise = (async () => {
-        console.log('Database: Starting dashboard data queries...')
+        console.log('Database: Starting dashboard data queries in parallel...')
         
-        // Get total summaries count
-        const { count: totalSummaries, error: countError } = await supabase
-          .from('summaries')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
+        // Run all queries in parallel for better performance
+        const [totalResult, recentResult, favoriteResult, weekResult] = await Promise.all([
+          // Get total summaries count
+          supabase
+            .from('summaries')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId),
+          
+          // Get recent summaries (last 5)
+          supabase
+            .from('summaries')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(5),
+          
+          // Get favorite count
+          supabase
+            .from('summaries')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_favorite', true),
+          
+          // Get this week's count
+          (() => {
+            const oneWeekAgo = new Date()
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+            return supabase
+              .from('summaries')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', userId)
+              .gte('created_at', oneWeekAgo.toISOString())
+          })()
+        ])
 
-        if (countError) {
-          console.error('Database: Error getting total count:', countError)
-          throw countError
+        // Check for any errors
+        if (totalResult.error) {
+          console.error('Database: Error getting total count:', totalResult.error)
+          throw totalResult.error
         }
-        console.log('Database: Total summaries count:', totalSummaries)
-
-        // Get recent summaries (last 5)
-        const { data: recentSummaries, error: recentError } = await supabase
-          .from('summaries')
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(5)
-
-        if (recentError) {
-          console.error('Database: Error getting recent summaries:', recentError)
-          throw recentError
+        if (recentResult.error) {
+          console.error('Database: Error getting recent summaries:', recentResult.error)
+          throw recentResult.error
         }
-        console.log('Database: Recent summaries found:', recentSummaries?.length || 0)
-
-        // Get favorite count
-        const { count: favoriteCount, error: favoriteError } = await supabase
-          .from('summaries')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('is_favorite', true)
-
-        if (favoriteError) {
-          console.error('Database: Error getting favorite count:', favoriteError)
-          throw favoriteError
+        if (favoriteResult.error) {
+          console.error('Database: Error getting favorite count:', favoriteResult.error)
+          throw favoriteResult.error
         }
-        console.log('Database: Favorite summaries count:', favoriteCount)
-
-        // Get this week's count
-        const oneWeekAgo = new Date()
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-
-        const { count: thisWeekCount, error: weekError } = await supabase
-          .from('summaries')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .gte('created_at', oneWeekAgo.toISOString())
-
-        if (weekError) {
-          console.error('Database: Error getting week count:', weekError)
-          throw weekError
+        if (weekResult.error) {
+          console.error('Database: Error getting week count:', weekResult.error)
+          throw weekResult.error
         }
-        console.log('Database: This week summaries count:', thisWeekCount)
+
+        console.log('Database: All queries completed successfully')
+        console.log('Database: Total summaries count:', totalResult.count)
+        console.log('Database: Recent summaries found:', recentResult.data?.length || 0)
+        console.log('Database: Favorite summaries count:', favoriteResult.count)
+        console.log('Database: This week summaries count:', weekResult.count)
 
         return {
-          totalSummaries: totalSummaries || 0,
-          recentSummaries: recentSummaries || [],
-          favoriteCount: favoriteCount || 0,
-          thisWeekCount: thisWeekCount || 0,
+          totalSummaries: totalResult.count || 0,
+          recentSummaries: recentResult.data || [],
+          favoriteCount: favoriteResult.count || 0,
+          thisWeekCount: weekResult.count || 0,
           error: null
         }
       })()

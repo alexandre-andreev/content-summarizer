@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
@@ -113,10 +114,14 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (isRefresh = false) => {
     if (!user) return
 
-    setLoading(true)
+    if (isRefresh) {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
     setError(null)
 
     try {
@@ -126,7 +131,14 @@ export default function DashboardPage() {
       
       if (data.error) {
         console.error('Dashboard data error:', data.error)
-        setError(data.error.message)
+        setError(data.error.message || 'Ошибка загрузки данных')
+        // Set empty data to allow UI to remain functional
+        setDashboardData({
+          totalSummaries: 0,
+          recentSummaries: [],
+          favoriteCount: 0,
+          thisWeekCount: 0
+        })
       } else {
         console.log('Setting dashboard data:', {
           totalSummaries: data.totalSummaries,
@@ -135,12 +147,21 @@ export default function DashboardPage() {
           thisWeekCount: data.thisWeekCount
         })
         setDashboardData(data)
+        setError(null) // Clear any previous errors
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading dashboard data:', err)
-      setError('Failed to load dashboard data')
+      setError(err.message || 'Не удалось загрузить данные панели')
+      // Set empty data to allow UI to remain functional
+      setDashboardData({
+        totalSummaries: 0,
+        recentSummaries: [],
+        favoriteCount: 0,
+        thisWeekCount: 0
+      })
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -215,14 +236,14 @@ export default function DashboardPage() {
         }, session.access_token).then((success) => {
           if (success) {
             console.log('Background save completed successfully')
-            // Refresh dashboard data after successful background save
+            // Refresh dashboard data after successful background save with 1-second delay
             setTimeout(() => {
-              loadDashboardData().then(() => {
+              loadDashboardData(true).then(() => {
                 console.log('Dashboard data refreshed after background save')
               }).catch(err => {
                 console.error('Failed to refresh dashboard after background save:', err)
               })
-            }, 500)
+            }, 1000) // 1-second delay as per memory requirement
           } else {
             console.error('Background save failed - summary visible but not in history')
           }
@@ -272,6 +293,14 @@ export default function DashboardPage() {
             
           </div>
           <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => loadDashboardData(true)}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Обновление...' : 'Обновить'}
+            </Button>
             <Button variant="outline" onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
@@ -281,7 +310,17 @@ export default function DashboardPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          {loading ? (
+          {error && (
+            <div className="col-span-4 mb-4">
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {error} - используйте кнопку "Обновить" для повторной попытки
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+          
+          {loading && !dashboardData ? (
             Array.from({ length: 4 }).map((_, i) => (
               <Card key={i}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -294,12 +333,6 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ))
-          ) : error ? (
-            <div className="col-span-4">
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            </div>
           ) : dashboardData ? (
             <>
               <Card>

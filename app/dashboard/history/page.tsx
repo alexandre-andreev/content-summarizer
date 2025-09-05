@@ -8,6 +8,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AppRecovery } from '@/components/app-recovery'
+import { PerformanceMonitor } from '@/components/performance-monitor'
 import { 
   ArrowLeft, 
   Search, 
@@ -36,6 +38,7 @@ export default function HistoryPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [isTabVisible, setIsTabVisible] = useState(true)
   const itemsPerPage = 10
 
   // Function to highlight search terms in text (returns JSX for direct rendering)
@@ -169,6 +172,53 @@ export default function HistoryPage() {
     }
   }, [user, searchQuery, sortBy, sortOrder, currentPage])
 
+  // Handle tab visibility changes to prevent browser suspension issues
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden
+      setIsTabVisible(isVisible)
+      
+      if (isVisible) {
+        console.log('History page became visible - checking data state')
+        
+        // If tab was hidden and now visible, refresh data if needed
+        if (user && !loading) {
+          console.log('Refreshing history data after tab became visible')
+          loadSummaries()
+        }
+      } else {
+        console.log('History page became hidden')
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    // Also handle window focus/blur for additional browser support
+    const handleFocus = () => {
+      console.log('History page window focused - ensuring data is current')
+      if (user && !loading) {
+        // Small delay to allow browser to stabilize
+        setTimeout(() => {
+          console.log('Performing history page focus recovery check')
+          loadSummaries()
+        }, 100)
+      }
+    }
+
+    const handleBlur = () => {
+      console.log('History page window blurred')
+    }
+
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('blur', handleBlur)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [user, loading])
+
   const handleSearch = (query: string) => {
     setSearchQuery(query)
     setCurrentPage(1)
@@ -224,6 +274,21 @@ export default function HistoryPage() {
     }
   }
 
+  const handleHistoryRecovery = async () => {
+    console.log('Performing history page recovery...')
+    
+    // Reset all states to clean state
+    setLoading(false)
+    setError(null)
+    
+    // Force reload summaries data
+    if (user) {
+      await loadSummaries()
+    }
+    
+    console.log('History page recovery completed')
+  }
+
   const totalPages = Math.ceil(totalCount / itemsPerPage)
 
   if (authLoading || !user) {
@@ -239,6 +304,8 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
+      <PerformanceMonitor onPerformanceIssue={(issue) => console.warn('History page performance issue:', issue)} />
+      <AppRecovery onRecover={handleHistoryRecovery} />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">

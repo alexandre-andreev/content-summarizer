@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
 import { supabase } from '@/lib/supabase/client'
@@ -8,13 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { UrlForm } from '@/components/url-form'
+import { UrlForm, type UrlFormRef } from '@/components/url-form'
 import { SummaryDisplay } from '@/components/summary-display'
 import { BrowserTabManager } from '@/components/browser-tab-manager'
 import { 
   BarChart3, 
-  FileText, 
-  Heart, 
   Calendar,
   LogOut,
   User,
@@ -30,6 +28,7 @@ interface DashboardData {
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
   const router = useRouter()
+  const urlFormRef = useRef<UrlFormRef>(null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -40,6 +39,7 @@ export default function DashboardPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [canSave, setCanSave] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [lastGeneratedSummary, setLastGeneratedSummary] = useState<{
     videoUrl: string;
     videoId: string;
@@ -56,12 +56,12 @@ export default function DashboardPage() {
     video_title: string
     summary_text: string
     processing_time: number
-  }, accessToken: string): Promise<boolean> => {
+  }, accessToken: string, timeoutMs: number = 25000): Promise<boolean> => {
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         controller.abort()
-      }, 10000) // 10 second timeout for background save
+      }, timeoutMs)
       
       const saveResponse = await fetch('/api/save-summary', {
         method: 'POST',
@@ -86,6 +86,9 @@ export default function DashboardPage() {
       }
     } catch (error: any) {
       console.error('Background save error:', error.message)
+      if (error.name === 'AbortError') {
+        throw error // Re-throw AbortError so it can be caught by caller
+      }
       return false
     }
   }
@@ -376,6 +379,7 @@ export default function DashboardPage() {
     if (!lastGeneratedSummary || !user || isSaving) return
 
     setIsSaving(true)
+    setSaveError(null)
     console.log('Saving summary to database and updating dashboard...')
 
     try {
@@ -383,17 +387,18 @@ export default function DashboardPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
         console.error('No session token available')
+        setSaveError('Нет активной сессии пользователя')
         return
       }
 
-      // Save summary to database
+      // Save summary to database with 25 second timeout
       const success = await saveSummaryToDatabase({
         youtube_url: lastGeneratedSummary.videoUrl,
         video_id: lastGeneratedSummary.videoId,
         video_title: lastGeneratedSummary.videoTitle,
         summary_text: lastGeneratedSummary.summaryText,
         processing_time: lastGeneratedSummary.processingTime
-      }, session.access_token)
+      }, session.access_token, 25000)
 
       if (success) {
         console.log('Summary saved successfully')
@@ -404,16 +409,47 @@ export default function DashboardPage() {
         // Reset save state
         setCanSave(false)
         setLastGeneratedSummary(null)
+        setSaveError(null)
         
         console.log('Dashboard updated with new summary')
       } else {
         console.error('Failed to save summary')
+        setSaveError('Не удалось сохранить описание, повторите еще раз позже')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving summary:', error)
+      
+      if (error.name === 'AbortError') {
+        setSaveError('Не удалось сохранить описание, повторите еще раз позже')
+      } else {
+        setSaveError('Не удалось сохранить описание, повторите еще раз позже')
+      }
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleClearSummary = () => {
+    // Clear all summary-related state
+    setSummary(null)
+    setVideoTitle(null)
+    setSummaryError(null)
+    setCanSave(false)
+    setIsSaving(false)
+    setSaveError(null)
+    setLastGeneratedSummary(null)
+    
+    // Clear localStorage backup
+    localStorage.removeItem('lastSummary')
+    localStorage.removeItem('lastVideoTitle')
+    localStorage.removeItem('lastSummaryTime')
+    
+    // Clear the URL input field
+    if (urlFormRef.current) {
+      urlFormRef.current.clearUrl()
+    }
+    
+    console.log('Summary and URL cleared successfully')
   }
 
   if (authLoading || !user) {
@@ -461,41 +497,37 @@ export default function DashboardPage() {
               
               {loading && !dashboardData ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Skeleton className="h-4 w-4" />
+                  <div className="flex items-center justify-between">
                     <Skeleton className="h-4 w-32" />
                     <Skeleton className="h-6 w-16" />
                   </div>
-                  <div className="flex items-center gap-4">
-                    <Skeleton className="h-4 w-4" />
+                  <div className="flex items-center justify-between">
                     <Skeleton className="h-4 w-24" />
                     <Skeleton className="h-6 w-16" />
                   </div>
-                  <div className="pt-2">
-                    <Skeleton className="h-12 w-64 mx-auto" />
+                  <div className="pt-4 flex justify-center">
+                    <Skeleton className="h-12 w-64" />
                   </div>
                 </div>
               ) : dashboardData ? (
                 <div className="space-y-6">
-                  {/* Statistics */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
+                  {/* Statistics - Left aligned */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-foreground">Получено описаний</span>
                       <span className="text-2xl font-bold text-foreground">{dashboardData.totalSummaries}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Heart className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-foreground">В избранном</span>
                       <span className="text-2xl font-bold text-foreground">{dashboardData.favoriteCount}</span>
                     </div>
                   </div>
                   
                   {/* Centered Button */}
-                  <div className="flex justify-center pt-2">
+                  <div className="flex justify-center pt-4">
                     <Button
                       onClick={() => router.push('/dashboard/history')}
-                      className="h-12 text-base font-semibold bg-primary hover:bg-primary/90 px-8"
+                      className="w-full h-12 text-base font-semibold bg-primary hover:bg-primary/90 transition-all duration-200 shadow-lg hover:shadow-xl"
                     >
                       <History className="mr-2 h-4 w-4" />
                       Посмотреть все описания
@@ -507,7 +539,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Create New Summary Form */}
-          <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
+          <UrlForm ref={urlFormRef} onSubmit={handleSummarize} isLoading={isProcessing} />
 
           {/* Summary Display */}
           <SummaryDisplay 
@@ -517,7 +549,9 @@ export default function DashboardPage() {
             isLoading={isProcessing}
             canSave={canSave}
             isSaving={isSaving}
+            saveError={saveError}
             onSave={handleSaveToHistory}
+            onClear={handleClearSummary}
           />
         </div>
       </div>

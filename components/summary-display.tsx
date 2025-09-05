@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, FileText, Save, Loader2 } from "lucide-react"
+import { AlertCircle, FileText, Save, Loader2, X } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 
 interface SummaryDisplayProps {
@@ -14,10 +14,22 @@ interface SummaryDisplayProps {
   isLoading: boolean;
   canSave?: boolean;
   isSaving?: boolean;
+  saveError?: string | null;
   onSave?: () => void;
+  onClear?: () => void;
 }
 
-export function SummaryDisplay({ summary, videoTitle, error, isLoading, canSave = false, isSaving = false, onSave }: SummaryDisplayProps) {
+export function SummaryDisplay({ 
+  summary, 
+  videoTitle, 
+  error, 
+  isLoading, 
+  canSave = false, 
+  isSaving = false, 
+  saveError = null,
+  onSave, 
+  onClear 
+}: SummaryDisplayProps) {
 
   if (isLoading) {
     return (
@@ -63,28 +75,46 @@ export function SummaryDisplay({ summary, videoTitle, error, isLoading, canSave 
             <p className="text-sm text-muted-foreground mt-1">Краткое изложение</p>
           )}
         </div>
-        {canSave && onSave && (
-          <Button 
-            onClick={onSave}
-            disabled={isSaving}
-            size="sm"
-            className="ml-4"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Сохранение...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Сохранить
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex gap-2 ml-4">
+          {canSave && onSave && (
+            <Button 
+              onClick={onSave}
+              disabled={isSaving}
+              size="sm"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Сохранение...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Сохранить
+                </>
+              )}
+            </Button>
+          )}
+          {onClear && (
+            <Button 
+              onClick={onClear}
+              disabled={isSaving}
+              size="sm"
+              variant="outline"
+            >
+              <X className="mr-2 h-4 w-4" />
+              Очистить описание
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
+        {saveError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{saveError}</AlertDescription>
+          </Alert>
+        )}
         <div className="prose prose-sm max-w-none dark:prose-invert">
           <ReactMarkdown
             components={{

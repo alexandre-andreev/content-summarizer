@@ -1,7 +1,7 @@
 'use client'
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,10 +13,21 @@ interface UrlFormProps {
   isLoading: boolean;
 }
 
-export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {
+export interface UrlFormRef {
+  clearUrl: () => void;
+}
+
+export const UrlForm = forwardRef<UrlFormRef, UrlFormProps>(({ onSubmit, isLoading }, ref) => {
   const [url, setUrl] = useState("")
   const [progress, setProgress] = useState(0)
   const [loadingMessage, setLoadingMessage] = useState("")
+
+  // Expose clearUrl function to parent component
+  useImperativeHandle(ref, () => ({
+    clearUrl: () => {
+      setUrl("")
+    }
+  }), [])
 
   // Progress simulation for user feedback
   useEffect(() => {
@@ -117,4 +128,6 @@ export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {
       </CardContent>
     </Card>
   )
-}
+})
+
+UrlForm.displayName = 'UrlForm'

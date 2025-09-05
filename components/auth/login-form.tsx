@@ -97,7 +97,7 @@ export function LoginForm({ onToggleMode, redirectTo = '/dashboard' }: LoginForm
       <CardHeader>
         <CardTitle>Sign In</CardTitle>
         <CardDescription>
-          Enter your email and password to access your account
+          Введите Логин (e-mail) и пароль
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

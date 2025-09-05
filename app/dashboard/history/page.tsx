@@ -17,7 +17,9 @@ import {
   ExternalLink, 
   Heart, 
   HeartOff, 
-  Trash2
+  Trash2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
 import { databaseService } from '@/lib/database'
@@ -37,13 +39,36 @@ export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [lastCacheTime, setLastCacheTime] = useState<number>(0)
-  const itemsPerPage = 10
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
+  const itemsPerPage = 4
   
   // Simple caching to avoid excessive database calls
   const CACHE_DURATION = 30000 // 30 seconds
   const shouldUseCache = (force = false) => {
     if (force) return false
     return Date.now() - lastCacheTime < CACHE_DURATION
+  }
+
+  // Function to get the first sentence of a text
+  const getFirstSentence = (text: string): string => {
+    if (!text) return ''
+    // Split by sentence endings, take first one
+    const sentences = text.split(/[.!?]+/)
+    const firstSentence = sentences[0]?.trim()
+    return firstSentence ? firstSentence + '.' : text.substring(0, 100) + '...'
+  }
+
+  // Function to toggle expanded state for a summary
+  const toggleSummaryExpansion = (summaryId: string) => {
+    setExpandedSummaries(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(summaryId)) {
+        newSet.delete(summaryId)
+      } else {
+        newSet.add(summaryId)
+      }
+      return newSet
+    })
   }
 
   // Function to highlight search terms in text
@@ -279,7 +304,7 @@ export default function HistoryPage() {
               Назад к панели
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">История саммари</h1>
+              <h1 className="text-3xl font-bold text-foreground">Сформированные описания</h1>
               <p className="text-muted-foreground">
                 Всего саммари: {totalCount}
               </p>
@@ -421,10 +446,45 @@ export default function HistoryPage() {
                       )}
                     </div>
                     
-                    <MarkdownWithHighlight 
-                      text={summary.summary_text} 
-                      searchTerm={searchQuery} 
-                    />
+                    {/* Summary Text with Expand/Collapse */}
+                    <div className="relative">
+                      {expandedSummaries.has(summary.id) ? (
+                        <MarkdownWithHighlight 
+                          text={summary.summary_text} 
+                          searchTerm={searchQuery} 
+                        />
+                      ) : (
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <p className="text-foreground leading-relaxed text-sm mb-2">
+                            {searchQuery ? (
+                              highlightSearchTerm(getFirstSentence(summary.summary_text), searchQuery)
+                            ) : (
+                              getFirstSentence(summary.summary_text)
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Expand/Collapse Button */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleSummaryExpansion(summary.id)}
+                        className="mt-2 text-blue-600 hover:text-blue-800 p-0 h-auto font-normal"
+                      >
+                        {expandedSummaries.has(summary.id) ? (
+                          <>
+                            <ChevronUp className="h-4 w-4 mr-1" />
+                            Свернуть
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-1" />
+                            Показать полностью
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

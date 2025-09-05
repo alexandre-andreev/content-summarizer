@@ -53,7 +53,7 @@ export default function HomePage() {
               />
             </svg>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 text-balance">Суммаризация видео</h1>
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 text-balance">Краткое изложение видео</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto text-pretty mb-6">
             Получите краткое изложение любого видео на YouTube за секунды. Просто вставьте URL и получите ключевые
             моменты.

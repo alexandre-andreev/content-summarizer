@@ -12,6 +12,7 @@ import { AppRecovery } from '@/components/app-recovery'
 import { PerformanceMonitor } from '@/components/performance-monitor'
 import { BrowserTabManager } from '@/components/browser-tab-manager'
 import { EmergencyRecovery } from '@/components/emergency-recovery'
+import { PurpleBarDetector } from '@/components/purple-bar-detector'
 import { 
   ArrowLeft, 
   Search, 
@@ -176,12 +177,47 @@ export default function HistoryPage() {
 
   // Handle tab visibility changes to prevent browser suspension issues
   useEffect(() => {
+    // Purple bar monitoring system
+    const monitorPurpleBars = () => {
+      const bodyText = document.body.textContent || ''
+      const hasContent = bodyText.length > 200
+      const hasValidData = summaries.length > 0 || loading
+      const hasSkeletonLoaders = document.querySelectorAll('[class*="skeleton"]').length
+      const hasSpinners = document.querySelectorAll('.animate-spin').length
+      
+      // Detect purple bars: no content, perpetual loading, or corrupted display
+      if (!hasContent || (hasSkeletonLoaders > 3 && !loading) || (hasSpinners > 0 && !loading)) {
+        console.warn('🟣 Potential purple bars detected:', {
+          bodyTextLength: bodyText.length,
+          hasSkeletonLoaders,
+          hasSpinners,
+          loading,
+          summariesCount: summaries.length
+        })
+        
+        // Auto-trigger recovery if stuck for more than 3 seconds
+        setTimeout(() => {
+          const stillStuck = document.body.textContent?.length < 200
+          if (stillStuck) {
+            console.error('🚨 Purple bars confirmed - triggering auto-recovery')
+            handleHistoryRecovery()
+          }
+        }, 3000)
+      }
+    }
+    
+    // Monitor every 5 seconds
+    const purpleBarInterval = setInterval(monitorPurpleBars, 5000)
+    
     const handleVisibilityChange = () => {
       const isVisible = !document.hidden
       setIsTabVisible(isVisible)
       
       if (isVisible) {
         console.log('History page became visible - checking data state')
+        
+        // Immediate purple bar check when tab becomes visible
+        setTimeout(monitorPurpleBars, 1000)
         
         // If tab was hidden and now visible, refresh data if needed
         if (user && !loading) {
@@ -229,6 +265,7 @@ export default function HistoryPage() {
     window.addEventListener('pageSlow', handlePageSlow as EventListener)
 
     return () => {
+      clearInterval(purpleBarInterval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
@@ -293,18 +330,49 @@ export default function HistoryPage() {
   }
 
   const handleHistoryRecovery = async () => {
-    console.log('Performing history page recovery...')
+    console.log('🔄 Performing enhanced history page recovery...')
+    
+    // Force clear any stuck animations or corrupted styles
+    const style = document.createElement('style')
+    style.textContent = `
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    `
+    document.head.appendChild(style)
+    
+    // Force DOM repaint to clear purple bars
+    document.body.style.display = 'none'
+    document.body.offsetHeight // Trigger reflow
+    document.body.style.display = ''
     
     // Reset all states to clean state
-    setLoading(false)
+    setLoading(true)
     setError(null)
+    setSummaries([])
+    setTotalCount(0)
     
-    // Force reload summaries data
-    if (user) {
-      await loadSummaries()
+    try {
+      // Force reload summaries data with retry logic
+      if (user) {
+        console.log('🔄 Reloading summaries after recovery...')
+        await loadSummaries()
+      }
+    } catch (error) {
+      console.error('❌ Recovery failed:', error)
+      setError('Ошибка восстановления данных')
+      setLoading(false)
     }
     
-    console.log('History page recovery completed')
+    // Remove forced styles after recovery
+    setTimeout(() => {
+      if (style.parentNode) {
+        document.head.removeChild(style)
+      }
+    }, 2000)
+    
+    console.log('✅ History page recovery completed')
   }
 
   const totalPages = Math.ceil(totalCount / itemsPerPage)
@@ -326,6 +394,7 @@ export default function HistoryPage() {
       <PerformanceMonitor onPerformanceIssue={(issue) => console.warn('History page performance issue:', issue)} />
       <AppRecovery onRecover={handleHistoryRecovery} />
       <EmergencyRecovery />
+      <PurpleBarDetector onPurpleBarDetected={handleHistoryRecovery} />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">

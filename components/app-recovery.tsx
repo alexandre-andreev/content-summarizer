@@ -51,13 +51,30 @@ export function AppRecovery({ onRecover }: AppRecoveryProps) {
         // Wait a moment then check if app is responsive
         setTimeout(() => {
           const bodyText = document.body.textContent || ''
-          // Check for common signs of frozen state (like repeated characters or empty content)
-          if (bodyText.length < 100 || bodyText.includes('████') || bodyText.trim() === '') {
-            console.error('Detected frozen state - purple bars or empty content')
+          const hasValidContent = bodyText.length > 100 && 
+                                !bodyText.includes('████') && 
+                                !bodyText.includes('▓▓▓▓') && 
+                                !bodyText.includes('░░░░') &&
+                                bodyText.trim() !== ''
+          
+          // Check for purple bars more aggressively
+          const hasLoadingSpinner = document.querySelector('.animate-spin')
+          const hasSkeletons = document.querySelectorAll('[class*="skeleton"]').length > 5
+          const hasEmptyCards = document.querySelectorAll('.card').length === 0
+          
+          if (!hasValidContent || hasLoadingSpinner || hasSkeletons || hasEmptyCards) {
+            console.error('🚨 Detected frozen state - purple bars, spinners, or empty content')
+            console.log('Debug info:', {
+              bodyTextLength: bodyText.length,
+              hasLoadingSpinner: !!hasLoadingSpinner,
+              hasSkeletons,
+              hasEmptyCards,
+              bodyPreview: bodyText.substring(0, 200)
+            })
             setForceShow(true)
             setIsStuck(true)
           }
-        }, 1000)
+        }, 1500) // Increased timeout for better detection
       }
     }
 

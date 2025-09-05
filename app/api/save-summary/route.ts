@@ -36,11 +36,12 @@ export async function POST(req: NextRequest) {
     console.log('✅ Token verified for user:', user.id)
 
     const body = await req.json()
-    const { youtube_url, video_id, summary_text, processing_time } = body
+    const { youtube_url, video_id, video_title, summary_text, processing_time } = body
     
     console.log('Request body received:', {
       youtube_url: youtube_url?.substring(0, 50) + '...',
       video_id,
+      video_title,
       summary_text_length: summary_text?.length || 0,
       processing_time
     })
@@ -111,6 +112,7 @@ export async function POST(req: NextRequest) {
       user_id: user.id,
       youtube_url,
       video_id,
+      video_title: video_title || null,
       summary_text: summary_text.trim(),
       processing_time: processing_time || null,
       is_favorite: false
@@ -120,6 +122,7 @@ export async function POST(req: NextRequest) {
       user_id: insertData.user_id,
       youtube_url: insertData.youtube_url.substring(0, 50) + '...',
       video_id: insertData.video_id,
+      video_title: insertData.video_title,
       summary_text_length: insertData.summary_text.length,
       processing_time: insertData.processing_time,
       is_favorite: insertData.is_favorite

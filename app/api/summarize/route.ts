@@ -23,14 +23,15 @@ export async function POST(req: NextRequest) {
     
     console.log('Starting summarization with timeout...');
     // Add 120 second timeout (2 minutes) to prevent hanging
-    const summary = await withTimeout(
+    const result = await withTimeout(
       summarizeLogic(videoUrl),
       120000 // 2 minutes
     );
     
     console.log('✅ Summarization completed successfully');
-    console.log('Summary length:', summary?.length || 0);
-    return NextResponse.json({ summary });
+    console.log('Title:', result?.title || 'No title');
+    console.log('Summary length:', result?.summary?.length || 0);
+    return NextResponse.json(result);
   } catch (error) {
     console.error('❌ Error in /api/summarize:', error);
 

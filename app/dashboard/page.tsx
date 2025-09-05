@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
+  const [videoTitle, setVideoTitle] = useState<string | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [canSave, setCanSave] = useState(false)
@@ -44,6 +45,7 @@ export default function DashboardPage() {
   const [lastGeneratedSummary, setLastGeneratedSummary] = useState<{
     videoUrl: string;
     videoId: string;
+    videoTitle: string;
     summaryText: string;
     processingTime: number;
   } | null>(null)
@@ -53,6 +55,7 @@ export default function DashboardPage() {
   const saveSummaryToDatabase = async (summaryData: {
     youtube_url: string
     video_id: string
+    video_title: string
     summary_text: string
     processing_time: number
   }, accessToken: string): Promise<boolean> => {
@@ -106,17 +109,20 @@ export default function DashboardPage() {
   // Restore summary from localStorage if available (for Hot Reload recovery)
   useEffect(() => {
     const lastSummary = localStorage.getItem('lastSummary')
+    const lastVideoTitle = localStorage.getItem('lastVideoTitle')
     const lastSummaryTime = localStorage.getItem('lastSummaryTime')
     
     if (lastSummary && lastSummaryTime) {
       const timeDiff = Date.now() - parseInt(lastSummaryTime)
       // If summary was generated less than 5 minutes ago, restore it
       if (timeDiff < 5 * 60 * 1000) {
-        console.log('Restoring summary from localStorage')
+        console.log('Restoring summary and title from localStorage')
         setSummary(lastSummary)
+        setVideoTitle(lastVideoTitle || 'Видео YouTube')
       } else {
         // Clean up old summary
         localStorage.removeItem('lastSummary')
+        localStorage.removeItem('lastVideoTitle')
         localStorage.removeItem('lastSummaryTime')
       }
     }
@@ -289,6 +295,7 @@ export default function DashboardPage() {
     setIsProcessing(true)
     setSummaryError(null)
     setSummary(null)
+    setVideoTitle(null)
     setCanSave(false) // Reset save button state
     setLastGeneratedSummary(null) // Clear previous summary data
 
@@ -323,14 +330,17 @@ export default function DashboardPage() {
       
       const data = await response.json()
       console.log('API response data received')
+      console.log('Title:', data.title || 'No title')
       console.log('Summary text length:', data.summary?.length || 0)
 
-      // Set summary immediately after receiving it - SHOW TO USER FIRST
-      console.log('Setting summary in state immediately')
+      // Set title and summary immediately after receiving them - SHOW TO USER FIRST
+      console.log('Setting title and summary in state immediately')
+      setVideoTitle(data.title || 'Видео YouTube')
       setSummary(data.summary)
       
       // Store in localStorage as backup against Hot Reload
       localStorage.setItem('lastSummary', data.summary)
+      localStorage.setItem('lastVideoTitle', data.title || 'Видео YouTube')
       localStorage.setItem('lastSummaryTime', Date.now().toString())
 
       const processingTime = Date.now() - startTime
@@ -344,6 +354,7 @@ export default function DashboardPage() {
       setLastGeneratedSummary({
         videoUrl,
         videoId,
+        videoTitle: data.title || 'Видео YouTube',
         summaryText: data.summary,
         processingTime
       })
@@ -389,6 +400,7 @@ export default function DashboardPage() {
       const success = await saveSummaryToDatabase({
         youtube_url: lastGeneratedSummary.videoUrl,
         video_id: lastGeneratedSummary.videoId,
+        video_title: lastGeneratedSummary.videoTitle,
         summary_text: lastGeneratedSummary.summaryText,
         processing_time: lastGeneratedSummary.processingTime
       }, session.access_token)
@@ -528,6 +540,7 @@ export default function DashboardPage() {
 
             <SummaryDisplay 
               summary={summary} 
+              videoTitle={videoTitle}
               error={summaryError} 
               isLoading={isProcessing}
               canSave={canSave}

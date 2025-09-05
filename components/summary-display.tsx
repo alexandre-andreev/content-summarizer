@@ -9,6 +9,7 @@ import ReactMarkdown from "react-markdown"
 
 interface SummaryDisplayProps {
   summary: string | null;
+  videoTitle?: string | null;
   error: string | null;
   isLoading: boolean;
   canSave?: boolean;
@@ -16,7 +17,7 @@ interface SummaryDisplayProps {
   onSave?: () => void;
 }
 
-export function SummaryDisplay({ summary, error, isLoading, canSave = false, isSaving = false, onSave }: SummaryDisplayProps) {
+export function SummaryDisplay({ summary, videoTitle, error, isLoading, canSave = false, isSaving = false, onSave }: SummaryDisplayProps) {
 
   if (isLoading) {
     return (
@@ -54,7 +55,14 @@ export function SummaryDisplay({ summary, error, isLoading, canSave = false, isS
   return (
     <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-xl font-bold text-foreground">Краткое изложение</CardTitle>
+        <div>
+          <CardTitle className="text-xl font-bold text-foreground">
+            {videoTitle || 'Краткое изложение'}
+          </CardTitle>
+          {videoTitle && (
+            <p className="text-sm text-muted-foreground mt-1">Краткое изложение</p>
+          )}
+        </div>
         {canSave && onSave && (
           <Button 
             onClick={onSave}

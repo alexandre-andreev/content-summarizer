@@ -138,7 +138,14 @@ export async function summarizeLogic(videoUrl: string) {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
     console.log('🤖 Step 3: Model instance created');
 
-    const prompt = 'You are an expert in summarizing YouTube videos. Your task is to provide a concise and clear summary of the following transcript. Highlight the main points and key takeaways. The summary should be in Russian:';
+    const prompt = `You are an expert in summarizing YouTube videos. Please analyze the following transcript and provide:
+1. A short video title (2-4 words in Russian)
+2. A concise and clear summary in Russian highlighting the main points and key takeaways.
+
+Please format your response EXACTLY as follows:
+{"title": "Short Title Here", "summary": "Detailed summary here..."}
+
+Transcript:`
 
     console.log('🤖 Step 4: Sending request to Gemini...');
     console.log('📝 Prompt length:', prompt.length);
@@ -164,10 +171,43 @@ export async function summarizeLogic(videoUrl: string) {
     const result = await Promise.race([contentPromise, timeoutPromise]) as any;
     console.log('🤖 Step 6: Gemini response received');
     
-    const summary = result.response.text();
+    const responseText = result.response.text();
     console.log('🤖 Step 7: Text extracted from response');
-    console.log('✅ Gemini API succeeded, summary length:', summary?.length || 0);
-    return summary;
+    console.log('📄 Raw response length:', responseText?.length || 0);
+    
+    // Parse the JSON response to extract title and summary
+    try {
+      let jsonText = responseText;
+      
+      // Remove code block markers if present
+      if (jsonText.includes('```json')) {
+        jsonText = jsonText.replace(/```json\s*|\s*```/g, '').trim();
+      }
+      
+      const parsed = JSON.parse(jsonText);
+      console.log('✅ Successfully parsed JSON response');
+      
+      if (!parsed.title || !parsed.summary) {
+        throw new Error('Missing title or summary in response');
+      }
+      
+      console.log('📝 Generated title:', parsed.title);
+      console.log('📝 Summary length:', parsed.summary?.length || 0);
+      
+      return {
+        title: parsed.title,
+        summary: parsed.summary
+      };
+    } catch (parseError) {
+      console.warn('⚠️ Failed to parse JSON response, falling back to plain text');
+      console.log('Raw response:', responseText.substring(0, 200) + '...');
+      
+      // Fallback: treat as plain summary without title
+      return {
+        title: "Видео YouTube",
+        summary: responseText
+      };
+    }
   } catch (geminiError: any) {
     console.error('❌ Gemini API failed:', {
       message: geminiError.message,

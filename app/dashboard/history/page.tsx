@@ -36,6 +36,22 @@ export default function HistoryPage() {
   const [totalCount, setTotalCount] = useState(0)
   const itemsPerPage = 10
 
+  // Function to highlight search terms in text
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm.trim()) return text
+    
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+    const parts = text.split(regex)
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <span key={index} className="bg-green-200 text-green-800 px-1 rounded">
+          {part}
+        </span>
+      ) : part
+    )
+  }
+
   const loadSummaries = async () => {
     if (!user) return
 
@@ -169,14 +185,6 @@ export default function HistoryPage() {
               </div>
               <div className="flex gap-2">
                 <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'created_at' | 'video_title')}
-                  className="px-3 py-2 border rounded-md bg-background"
-                >
-                  <option value="created_at">По дате</option>
-                  <option value="video_title">По названию</option>
-                </select>
-                <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
                   className="px-3 py-2 border rounded-md bg-background"
@@ -235,7 +243,10 @@ export default function HistoryPage() {
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start mb-3">
                       <h3 className="font-semibold text-lg mb-1">
-                        {summary.video_title && summary.video_title.trim() !== '' ? summary.video_title : 'YouTube Video'}
+                        {summary.video_title && summary.video_title.trim() !== '' 
+                          ? highlightSearchTerm(summary.video_title, searchQuery)
+                          : 'YouTube Video'
+                        }
                       </h3>
                       <div className="flex gap-2 ml-4">
                         <Button
@@ -288,7 +299,7 @@ export default function HistoryPage() {
                     </div>
                     
                     <p className="text-foreground leading-relaxed text-sm">
-                      {summary.summary_text}
+                      {highlightSearchTerm(summary.summary_text, searchQuery)}
                     </p>
                   </CardContent>
                 </Card>

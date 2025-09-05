@@ -403,7 +403,7 @@ export default function DashboardPage() {
                     className="w-full"
                     onClick={() => router.push('/dashboard/history')}
                   >
-                    View All History
+                    Посмотреть все описания
                   </Button>
                 ) : null}
               </CardContent>

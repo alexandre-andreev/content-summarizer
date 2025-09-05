@@ -272,29 +272,7 @@ export default function DashboardPage() {
             
           </div>
           <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              onClick={loadDashboardData}
-              disabled={loading}
-              size="sm"
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => router.push('/dashboard/history')}
-            >
-              <History className="mr-2 h-4 w-4" />
-              History
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => router.push('/dashboard/profile')}
-            >
-              <User className="mr-2 h-4 w-4" />
-              Profile
-            </Button>
+            
             <Button variant="outline" onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
@@ -378,7 +356,11 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-6">
             <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
 
-            
+            <SummaryDisplay 
+              summary={summary} 
+              error={summaryError} 
+              isLoading={isProcessing} 
+            />
           </div>
 
           {/* Recent Summaries */}

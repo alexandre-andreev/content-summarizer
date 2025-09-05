@@ -1,19 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
-import { UrlForm } from "@/components/url-form"
-import { SummaryDisplay } from "@/components/summary-display"
+
 import { Button } from "@/components/ui/button"
 import { LogIn, UserPlus } from "lucide-react"
 
 export default function HomePage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [summary, setSummary] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
@@ -22,33 +19,7 @@ export default function HomePage() {
     }
   }, [user, loading, router])
 
-  const handleSummarize = async (videoUrl: string) => {
-    setIsLoading(true)
-    setError(null)
-    setSummary(null)
-
-    try {
-      const response = await fetch("/api/summarize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ videoUrl }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'An unknown error occurred.')
-      }
-
-      setSummary(data.summary)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  
 
   // Show loading state while checking authentication
   if (loading) {
@@ -111,11 +82,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Main Content */}
-        <div className="max-w-4xl mx-auto space-y-8">
-          <UrlForm onSubmit={handleSummarize} isLoading={isLoading} />
-          <SummaryDisplay summary={summary} error={error} isLoading={isLoading} />
-        </div>
+        
 
         {/* Features Section */}
         <div className="mt-20 grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">

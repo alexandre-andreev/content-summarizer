@@ -3,6 +3,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/components/auth/auth-provider'
+import { Header } from '@/components/header'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <AuthProvider>
+          <Header />
           {children}
           <Toaster />
         </AuthProvider>

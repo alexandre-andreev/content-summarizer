@@ -15,12 +15,18 @@ export function PurpleBarDetector({
 }: PurpleBarDetectorProps) {
   const detectionRef = useRef(0)
   const lastValidContentRef = useRef('')
+  const isRecoveryRunningRef = useRef(false)
 
   useEffect(() => {
     if (!enabled) return
 
     const detectPurpleBars = () => {
       try {
+        // Don't detect during recovery
+        if (isRecoveryRunningRef.current) {
+          console.log('Skipping detection - recovery in progress')
+          return
+        }
         const bodyText = document.body.textContent || ''
         const bodyHTML = document.body.innerHTML || ''
         
@@ -114,16 +120,37 @@ export function PurpleBarDetector({
     
     // Check on focus events
     const handleFocus = () => {
-      setTimeout(detectPurpleBars, 200)
+      if (!isRecoveryRunningRef.current) {
+        setTimeout(detectPurpleBars, 200)
+      }
+    }
+    
+    // Listen for emergency recovery events
+    const handleRecoveryStart = () => {
+      console.log('Emergency recovery started - disabling purple bar detection')
+      isRecoveryRunningRef.current = true
+      detectionRef.current = 0 // Reset detection counter
+    }
+    
+    const handleRecoveryComplete = () => {
+      console.log('Emergency recovery completed - re-enabling purple bar detection')
+      isRecoveryRunningRef.current = false
+      detectionRef.current = 0
+      // Wait a bit then resume detection
+      setTimeout(detectPurpleBars, 2000)
     }
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleFocus)
+    window.addEventListener('emergencyRecoveryStart', handleRecoveryStart)
+    window.addEventListener('emergencyRecoveryComplete', handleRecoveryComplete)
     
     return () => {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('emergencyRecoveryStart', handleRecoveryStart)
+      window.removeEventListener('emergencyRecoveryComplete', handleRecoveryComplete)
     }
   }, [onPurpleBarDetected, checkInterval, enabled])
 

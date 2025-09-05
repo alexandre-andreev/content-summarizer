@@ -12,7 +12,10 @@ export function EmergencyRecovery() {
     setIsRecovering(true)
     
     try {
-      // Step 1: Clear problematic storage while preserving auth
+      // Step 1: Disable purple bar detection immediately
+      window.dispatchEvent(new CustomEvent('emergencyRecoveryStart'))
+      
+      // Step 2: Clear problematic storage while preserving auth
       const authData: Record<string, string> = {}
       
       // Preserve Supabase auth tokens
@@ -35,13 +38,19 @@ export function EmergencyRecovery() {
       
       console.log('🔄 Storage cleared, auth preserved')
       
-      // Step 2: Force DOM cleanup
+      // Step 3: Stop all intervals and timers
+      const highestIntervalId = setInterval(() => {}, 0)
+      for (let i = 1; i <= highestIntervalId; i++) {
+        clearInterval(i)
+      }
+      
+      // Step 4: Force DOM cleanup
       const allElements = document.querySelectorAll('*')
       allElements.forEach(el => {
         el.removeAttribute('style')
       })
       
-      // Step 3: Force repaint with aggressive DOM manipulation
+      // Step 5: Force repaint with aggressive DOM manipulation
       document.body.style.visibility = 'hidden'
       document.body.style.display = 'none'
       
@@ -53,25 +62,25 @@ export function EmergencyRecovery() {
       
       console.log('🔄 DOM repaint forced')
       
-      // Step 4: Wait and check if recovery worked
+      // Step 6: Dispatch recovery completion event
+      window.dispatchEvent(new CustomEvent('emergencyRecoveryComplete'))
+      
+      // Step 7: Wait and check if recovery worked
       setTimeout(() => {
         const bodyText = document.body.textContent || ''
         const isStillBroken = bodyText.length < 100 || 
                              bodyText.includes('████') ||
-                             document.querySelectorAll('.animate-spin').length > 1
+                             document.querySelectorAll('.animate-spin:not(button *)').length > 1
         
         if (isStillBroken) {
-          console.log('🚨 Soft recovery failed, forcing hard reload')
+          console.log('🚨 Emergency recovery failed, forcing hard reload')
           // Hard refresh as last resort
           window.location.reload()
         } else {
           console.log('✅ Emergency recovery successful')
           setIsRecovering(false)
-          
-          // Trigger a custom event to notify other components
-          window.dispatchEvent(new CustomEvent('emergencyRecoveryComplete'))
         }
-      }, 2000)
+      }, 3000)
       
     } catch (error) {
       console.error('❌ Emergency recovery failed:', error)

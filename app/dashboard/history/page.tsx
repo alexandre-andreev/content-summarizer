@@ -22,7 +22,8 @@ import {
   ExternalLink, 
   Heart, 
   HeartOff, 
-  Trash2 
+  Trash2,
+  RefreshCw
 } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
 import { databaseService } from '@/lib/database'
@@ -43,7 +44,16 @@ export default function HistoryPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [isTabVisible, setIsTabVisible] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [lastCacheTime, setLastCacheTime] = useState<number>(0)
   const itemsPerPage = 10
+  
+  // Simple caching to avoid excessive database calls
+  const CACHE_DURATION = 30000 // 30 seconds
+  const shouldUseCache = (force = false) => {
+    if (force) return false
+    return Date.now() - lastCacheTime < CACHE_DURATION
+  }
 
   // Function to highlight search terms in text (returns JSX for direct rendering)
   const highlightSearchTerm = (text: string, searchTerm: string) => {
@@ -134,13 +144,19 @@ export default function HistoryPage() {
     )
   }
 
-  const loadSummaries = async () => {
+  const loadSummaries = async (forceRefresh = false) => {
     if (!user) return
+
+    // Check cache first unless force refresh
+    if (!forceRefresh && shouldUseCache() && summaries.length > 0) {
+      console.log('Using cached data, skipping database call')
+      return
+    }
 
     setLoading(true)
     setError(null)
 
-    console.log("Attempting to load summaries for user:", user.id)
+    console.log(`Attempting to load summaries for user: ${user.id} (force: ${forceRefresh})`)
 
     try {
       const result = await databaseService.getUserSummaries(
@@ -161,6 +177,7 @@ export default function HistoryPage() {
       } else {
         setSummaries(result.summaries || [])
         setTotalCount(result.count || 0)
+        setLastCacheTime(Date.now()) // Update cache timestamp
       }
     } catch (err) {
       console.error("Error loading summaries:", err)
@@ -169,10 +186,26 @@ export default function HistoryPage() {
       setLoading(false)
     }
   }
+  
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      await loadSummaries(true) // Force refresh
+      console.log('✅ Manual refresh completed')
+    } catch (error) {
+      console.error('❌ Manual refresh failed:', error)
+      setError('Ошибка обновления данных')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   useEffect(() => {
     if (user) {
-      loadSummaries()
+      // Force refresh when search, sort, or page changes
+      const needsRefresh = searchQuery !== '' || sortBy !== 'created_at' || sortOrder !== 'desc' || currentPage !== 1
+      loadSummaries(needsRefresh)
     }
   }, [user, searchQuery, sortBy, sortOrder, currentPage])
 
@@ -223,7 +256,7 @@ export default function HistoryPage() {
         // If tab was hidden and now visible, refresh data if needed
         if (user && !loading) {
           console.log('Refreshing history data after tab became visible')
-          loadSummaries()
+          loadSummaries(true) // Force refresh after tab switch
         }
       } else {
         console.log('History page became hidden')
@@ -303,7 +336,7 @@ export default function HistoryPage() {
         setError('Failed to update favorite status')
       } else {
         // Refresh the list to show updated favorite status
-        await loadSummaries()
+        await loadSummaries(true)
       }
     } catch (err) {
       setError('Failed to update favorite status')
@@ -323,7 +356,7 @@ export default function HistoryPage() {
         setError('Failed to delete summary')
       } else {
         // Refresh the list to remove the deleted summary
-        await loadSummaries()
+        await loadSummaries(true)
       }
     } catch (err) {
       setError('Failed to delete summary')
@@ -331,80 +364,121 @@ export default function HistoryPage() {
   }
 
   const handleHistoryRecovery = async () => {
-    console.log('🔄 Performing enhanced history page recovery...')
+    console.log('🔄 Starting aggressive history page recovery...')
     
-    // Immediately stop any flashing by fixing styles
-    const antiFlashStyle = document.createElement('style')
-    antiFlashStyle.textContent = `
-      * {
-        animation: none !important;
-        transition: none !important;
-        opacity: 1 !important;
-      }
-      body {
-        visibility: visible !important;
-        display: block !important;
-      }
-    `
-    document.head.appendChild(antiFlashStyle)
-    
-    // Reset all states to clean state first
-    setLoading(true)
-    setError(null)
-    setSummaries([])
-    setTotalCount(0)
-    
-    // Force DOM cleanup to prevent flashing
     try {
-      // Remove any corrupted elements that might cause flashing
+      // Step 1: Stop all timers and clear detection loops
+      const intervals = window.setInterval(() => {}, 0) - 1
+      for (let i = 1; i <= intervals; i++) {
+        window.clearInterval(i)
+      }
+      
+      // Step 2: Immediately stop flashing with aggressive CSS
+      const antiFlashStyle = document.createElement('style')
+      antiFlashStyle.id = 'emergency-anti-flash'
+      antiFlashStyle.textContent = `
+        * {
+          animation: none !important;
+          transition: none !important;
+          opacity: 1 !important;
+          visibility: visible !important;
+        }
+        body {
+          display: block !important;
+          visibility: visible !important;
+        }
+        .animate-spin {
+          animation: none !important;
+        }
+      `
+      document.head.appendChild(antiFlashStyle)
+      
+      // Step 3: Clear all corrupted DOM elements
       const skeletons = document.querySelectorAll('[class*="skeleton"]')
-      const spinners = document.querySelectorAll('.animate-spin')
+      const spinners = document.querySelectorAll('.animate-spin:not(button *)')
       
       skeletons.forEach(el => el.remove())
-      spinners.forEach(el => {
-        if (!el.closest('button')) { // Keep button spinners
-          el.remove()
-        }
-      })
+      spinners.forEach(el => el.remove())
       
-      // Force repaint to clear purple bars
+      // Step 4: Force complete DOM reset
       document.body.style.transform = 'translateZ(0)' // Force GPU layer
       document.body.style.visibility = 'hidden'
-      document.body.offsetHeight // Trigger reflow
+      document.body.offsetHeight // Force reflow
       document.body.style.visibility = 'visible'
       document.body.style.transform = ''
       
-    } catch (domError) {
-      console.warn('DOM cleanup failed:', domError)
-    }
-    
-    try {
-      // Force reload summaries data with retry logic
+      console.log('🔄 DOM cleanup completed')
+      
+      // Step 5: Reset React state completely
+      setLoading(false) // Stop loading immediately
+      setError(null)
+      setSummaries([])
+      setTotalCount(0)
+      
+      console.log('🔄 State reset completed')
+      
+      // Step 6: Force data reload with timeout
       if (user) {
-        console.log('🔄 Reloading summaries after recovery...')
-        await loadSummaries()
-      }
-    } catch (error) {
-      console.error('❌ Recovery failed:', error)
-      setError('Ошибка восстановления данных')
-      setLoading(false)
-    }
-    
-    // Remove anti-flash styles after recovery completes
-    setTimeout(() => {
-      if (antiFlashStyle.parentNode) {
-        document.head.removeChild(antiFlashStyle)
+        console.log('🔄 Forcing data reload...')
+        setLoading(true)
+        
+        try {
+          const result = await Promise.race([
+            databaseService.getUserSummaries(
+              user.id,
+              {
+                search: searchQuery,
+                sortBy,
+                sortOrder,
+                offset: (currentPage - 1) * itemsPerPage,
+                limit: itemsPerPage
+              }
+            ),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Recovery timeout')), 5000)
+            )
+          ])
+          
+          if (result.error) {
+            throw new Error(result.error.message)
+          }
+          
+          setSummaries(result.summaries || [])
+          setTotalCount(result.count || 0)
+          setError(null)
+          
+          console.log('✅ Data reload successful')
+          
+        } catch (dataError) {
+          console.error('❌ Data reload failed:', dataError)
+          setError('Ошибка загрузки данных')
+        } finally {
+          setLoading(false)
+        }
       }
       
-      // Final check - if still broken, force reload
-      const bodyText = document.body.textContent || ''
-      if (bodyText.length < 200 || bodyText.includes('████')) {
-        console.warn('⚠️ Recovery incomplete, forcing page reload')
-        window.location.reload()
-      }
-    }, 3000)
-    
-    console.log('✅ History page recovery completed')
+      // Step 7: Remove anti-flash styles after recovery
+      setTimeout(() => {
+        const style = document.getElementById('emergency-anti-flash')
+        if (style) {
+          style.remove()
+        }
+        
+        // Final check - if still broken, force reload
+        const bodyText = document.body.textContent || ''
+        if (bodyText.length < 200 || bodyText.includes('████')) {
+          console.warn('⚠️ Recovery still incomplete, forcing page reload')
+          window.location.reload()
+        } else {
+          console.log('✅ Recovery completed successfully')
+        }
+      }, 3000)
+      
+    } catch (error) {
+      console.error('❌ Recovery failed completely:', error)
+      // Last resort - force page reload
+      setTimeout(() => window.location.reload(), 1000)
+    }
   }
 
   const totalPages = Math.ceil(totalCount / itemsPerPage)
@@ -444,6 +518,27 @@ export default function HistoryPage() {
                 Всего саммари: {totalCount}
               </p>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing || loading}
+              className="min-w-[100px]"
+            >
+              {isRefreshing ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Обновление...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Обновить
+                </>
+              )}
+            </Button>
           </div>
         </div>
 

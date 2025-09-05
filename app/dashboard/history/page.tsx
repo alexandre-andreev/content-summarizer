@@ -301,7 +301,7 @@ export default function HistoryPage() {
               onClick={() => router.push('/dashboard')}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Назад к панели
+              Назад к получению описания видео
             </Button>
             <div>
               <h1 className="text-3xl font-bold text-foreground">Сформированные описания</h1>

@@ -58,28 +58,6 @@ export default function HomePage() {
             Получите краткое изложение любого видео на YouTube за секунды. Просто вставьте URL и получите ключевые
             моменты.
           </p>
-          
-          {/* Authentication buttons for non-authenticated users */}
-          <div className="flex gap-4 justify-center mb-8">
-            <Button 
-              onClick={() => router.push('/auth/login')}
-              className="bg-primary hover:bg-primary/90"
-            >
-              <LogIn className="mr-2 h-4 w-4" />
-              Войти
-            </Button>
-            <Button 
-              variant="outline"
-              onClick={() => router.push('/auth/register')}
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Создать аккаунт
-            </Button>
-          </div>
-          
-          <p className="text-sm text-muted-foreground">
-            Войдите в аккаунт, чтобы сохранять историю ваших запросов
-          </p>
         </div>
 
         

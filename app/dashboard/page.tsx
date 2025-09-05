@@ -451,7 +451,7 @@ export default function DashboardPage() {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {error && (
-            <div className="col-span-4 mb-4">
+            <div className="col-span-2 mb-4">
               <Alert variant="destructive">
                 <AlertDescription>
                   {error}
@@ -461,7 +461,7 @@ export default function DashboardPage() {
           )}
           
           {loading && !dashboardData ? (
-            Array.from({ length: 4 }).map((_, i) => (
+            Array.from({ length: 2 }).map((_, i) => (
               <Card key={i}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <Skeleton className="h-4 w-20" />

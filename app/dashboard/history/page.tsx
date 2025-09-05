@@ -235,7 +235,7 @@ export default function HistoryPage() {
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start mb-3">
                       <h3 className="font-semibold text-lg mb-1">
-                        {summary.video_title || 'YouTube Video'}
+                        {summary.video_title && summary.video_title.trim() !== '' ? summary.video_title : 'YouTube Video'}
                       </h3>
                       <div className="flex gap-2 ml-4">
                         <Button

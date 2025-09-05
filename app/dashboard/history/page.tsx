@@ -9,7 +9,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BrowserTabManager } from '@/components/browser-tab-manager'
-import { PurpleBarDetector } from '@/components/purple-bar-detector'
 import { 
   ArrowLeft, 
   Search, 
@@ -18,8 +17,7 @@ import {
   ExternalLink, 
   Heart, 
   HeartOff, 
-  Trash2,
-  RefreshCw
+  Trash2
 } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
 import { databaseService } from '@/lib/database'
@@ -38,7 +36,6 @@ export default function HistoryPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastCacheTime, setLastCacheTime] = useState<number>(0)
   const itemsPerPage = 10
   
@@ -178,19 +175,7 @@ export default function HistoryPage() {
     }
   }
   
-  // Manual refresh function
-  const handleManualRefresh = async () => {
-    setIsRefreshing(true)
-    try {
-      await loadSummaries(true)
-      console.log('✅ Manual refresh completed')
-    } catch (error) {
-      console.error('❌ Manual refresh failed:', error)
-      setError('Ошибка обновления данных')
-    } finally {
-      setIsRefreshing(false)
-    }
-  }
+  // Manual refresh function - removed as it doesn't work properly
 
   useEffect(() => {
     if (user) {
@@ -283,7 +268,6 @@ export default function HistoryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <BrowserTabManager />
-      <PurpleBarDetector />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
@@ -301,27 +285,7 @@ export default function HistoryPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleManualRefresh}
-              disabled={isRefreshing || loading}
-              className="min-w-[100px]"
-            >
-              {isRefreshing ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Обновление...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Обновить
-                </>
-              )}
-            </Button>
-          </div>
+          {/* Removed manual refresh button - it doesn't work properly */}
         </div>
 
         <Card className="mb-6">

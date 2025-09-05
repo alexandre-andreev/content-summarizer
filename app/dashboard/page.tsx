@@ -1,7 +1,5 @@
 'use client'
 
-'use client'
-
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
@@ -12,10 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { UrlForm } from '@/components/url-form'
 import { SummaryDisplay } from '@/components/summary-display'
-import { AppRecovery } from '@/components/app-recovery'
-import { PerformanceMonitor } from '@/components/performance-monitor'
 import { BrowserTabManager } from '@/components/browser-tab-manager'
-import { EmergencyRecovery } from '@/components/emergency-recovery'
 import { 
   BarChart3, 
   FileText, 
@@ -23,8 +18,7 @@ import {
   Calendar,
   LogOut,
   User,
-  History,
-  RefreshCw
+  History
 } from 'lucide-react'
 import type { Summary } from '@/lib/supabase/client'
 
@@ -444,14 +438,7 @@ export default function DashboardPage() {
             
           </div>
           <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
-              onClick={() => loadDashboardData(true)}
-              disabled={refreshing}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Обновление...' : 'Обновить'}
-            </Button>
+            {/* Removed manual refresh button - it doesn't work properly */}
             <Button variant="outline" onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
@@ -465,7 +452,7 @@ export default function DashboardPage() {
             <div className="col-span-4 mb-4">
               <Alert variant="destructive">
                 <AlertDescription>
-                  {error} - используйте кнопку "Обновить" для повторной попытки
+                  {error}
                 </AlertDescription>
               </Alert>
             </div>

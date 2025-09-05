@@ -23,11 +23,6 @@ export function Header() {
         <div className="flex items-center gap-4 w-full justify-end">
           {user ? (
             <>
-              
-              <Button variant="outline" onClick={handleSignOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
-              </Button>
             </>
           ) : (
             <>

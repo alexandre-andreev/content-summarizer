@@ -378,11 +378,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-6">
             <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
 
-            <SummaryDisplay 
-              summary={summary} 
-              error={summaryError} 
-              isLoading={isProcessing} 
-            />
+            
           </div>
 
           {/* Recent Summaries */}

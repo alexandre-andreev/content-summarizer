@@ -294,23 +294,26 @@ export default function HistoryPage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <BrowserTabManager />
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              onClick={() => router.push('/dashboard')}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Назад к получению описания видео
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Сформированные описания</h1>
-              <p className="text-muted-foreground">
-                Всего саммари: {totalCount}
-              </p>
-            </div>
-          </div>
-          {/* Removed manual refresh button - it doesn't work properly */}
+        {/* Navigation Button - Top Left */}
+        <div className="mb-4">
+          <Button
+            variant="outline"
+            onClick={() => router.push('/dashboard')}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Назад к получению видео
+          </Button>
+        </div>
+        
+        {/* Title and Counter - Left Aligned */}
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Сформированные описания</h1>
+          <p className="text-muted-foreground mb-2">
+            Всего саммари: {totalCount}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Если описания не загружаются, обновите страницу браузера
+          </p>
         </div>
 
         <Card className="mb-6">
@@ -326,9 +329,6 @@ export default function HistoryPage() {
                     onKeyPress={handleKeyPress}
                     className="pl-10"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    💡 Для отображения всех данных удалите поисковый запрос
-                  </p>
                 </div>
               </div>
               <div className="flex gap-2">

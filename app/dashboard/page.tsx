@@ -269,9 +269,7 @@ export default function DashboardPage() {
             <h1 className="text-3xl font-bold text-foreground">
               Добро пожаловать, {user.user_metadata?.display_name || user.email}
             </h1>
-            <p className="text-muted-foreground">
-              Создайте новое описание видео
-            </p>
+            
           </div>
           <div className="flex items-center gap-4">
             <Button 
@@ -379,12 +377,6 @@ export default function DashboardPage() {
           {/* Create New Summary */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Новое саммари</CardTitle>
-                <CardDescription>
-                  Вставьте ссылку на YouTube видео для создания саммари с помощью AI
-                </CardDescription>
-              </CardHeader>
               <CardContent>
                 <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
               </CardContent>

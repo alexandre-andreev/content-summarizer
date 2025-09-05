@@ -57,6 +57,9 @@ export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {
       <CardContent className="p-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
+            <label htmlFor="url" className="text-sm font-medium text-foreground">
+              Введите ссылку на видео:
+            </label>
             
             <div className="relative">
               <Link className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />

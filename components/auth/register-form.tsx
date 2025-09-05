@@ -87,10 +87,7 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle>Create Account</CardTitle>
-        <CardDescription>
-          Sign up for an account to save your summaries
-        </CardDescription>
+        <CardTitle>Создать аккаунт</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
@@ -102,7 +99,7 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
         <form onSubmit={handleRegister} className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="displayName" className="text-sm font-medium">
-              Display Name (Optional)
+              Имя пользователя (опционально)
             </label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -120,7 +117,7 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
 
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium">
-              Email
+              Электронная почта
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -139,7 +136,7 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
 
           <div className="space-y-2">
             <label htmlFor="password" className="text-sm font-medium">
-              Password
+              Пароль
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -158,7 +155,7 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
 
           <div className="space-y-2">
             <label htmlFor="confirmPassword" className="text-sm font-medium">
-              Confirm Password
+              Еще раз пароль
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -183,10 +180,10 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating account...
+                Создание аккаунта...
               </>
             ) : (
-              'Create Account'
+              'Создать аккаунт'
             )}
           </Button>
         </form>
@@ -196,7 +193,7 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
         {onToggleMode && (
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
-              Already have an account?{' '}
+              Уже есть Аккаунт?{' '}
               <button
                 type="button"
                 onClick={onToggleMode}
@@ -208,9 +205,7 @@ export function RegisterForm({ onToggleMode, redirectTo = '/dashboard' }: Regist
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground text-center">
-          By creating an account, you agree to our Terms of Service and Privacy Policy.
-        </p>
+
       </CardContent>
     </Card>
   )

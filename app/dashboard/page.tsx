@@ -18,7 +18,8 @@ import {
   Calendar,
   LogOut,
   User,
-  History
+  History,
+  Loader2
 } from 'lucide-react'
 import type { Summary } from '@/lib/supabase/client'
 
@@ -432,105 +433,116 @@ export default function DashboardPage() {
       <BrowserTabManager />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              Добро пожаловать, {user.user_metadata?.display_name || user.email}
-            </h1>
-            
-          </div>
-          <div className="flex items-center gap-4">
-            {/* Removed manual refresh button - it doesn't work properly */}
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
+        <div className="flex justify-end items-center mb-4">
+          <Button variant="outline" onClick={handleSignOut}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {error && (
-            <div className="col-span-2 mb-4">
-              <Alert variant="destructive">
-                <AlertDescription>
-                  {error}
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-          
-          {loading && !dashboardData ? (
-            Array.from({ length: 2 }).map((_, i) => (
-              <Card key={i}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-4" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-8 w-16 mb-1" />
-                  <Skeleton className="h-3 w-24" />
-                </CardContent>
-              </Card>
-            ))
-          ) : dashboardData ? (
-            <>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Получено описаний</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{dashboardData.totalSummaries}</div>
-                  <p className="text-xs text-muted-foreground">За все время</p>
-                </CardContent>
-              </Card>
-
-
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">В избранном</CardTitle>
-                  <Heart className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{dashboardData.favoriteCount}</div>
-                  <p className="text-xs text-muted-foreground">Отмечено</p>
-                </CardContent>
-              </Card>
-
-
-            </>
-          ) : null}
+        
+        {/* Welcome Message - Centered */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-foreground">
+            Добро пожаловать, {user.user_metadata?.display_name || user.email}
+          </h1>
         </div>
 
         {/* Main Content */}
-        <div className="space-y-8">
-          {/* Create New Summary */}
-          <div className="max-w-4xl mx-auto space-y-6">
-            <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
+        <div className="max-w-4xl mx-auto space-y-8">
+          {/* Stats Cards - Match UrlForm width */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {error && (
+              <div className="col-span-2 mb-4">
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+            
+            {loading && !dashboardData ? (
+              Array.from({ length: 2 }).map((_, i) => (
+                <Card key={i}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-4" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-16 mb-1" />
+                    <Skeleton className="h-3 w-24" />
+                  </CardContent>
+                </Card>
+              ))
+            ) : dashboardData ? (
+              <>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Получено описаний</CardTitle>
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.totalSummaries}</div>
+                    <p className="text-xs text-muted-foreground">За все время</p>
+                  </CardContent>
+                </Card>
 
-            <SummaryDisplay 
-              summary={summary} 
-              videoTitle={videoTitle}
-              error={summaryError} 
-              isLoading={isProcessing}
-              canSave={canSave}
-              isSaving={isSaving}
-              onSave={handleSaveToHistory}
-            />
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">В избранном</CardTitle>
+                    <Heart className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{dashboardData.favoriteCount}</div>
+                    <p className="text-xs text-muted-foreground">Отмечено</p>
+                  </CardContent>
+                </Card>
+              </>
+            ) : null}
           </div>
 
-          {/* View All Descriptions Button */}
-          <div className="flex justify-center">
+          {/* Create New Summary Form */}
+          <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
+
+          {/* Action Buttons Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Button
               onClick={() => router.push('/dashboard/history')}
-              className="bg-primary hover:bg-primary/90"
+              className="h-12 text-base font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground"
             >
               <History className="mr-2 h-4 w-4" />
               Посмотреть все описания
             </Button>
+            
+            <Button
+              disabled={!canSave || isSaving}
+              onClick={handleSaveToHistory}
+              className="h-12 text-base font-semibold bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Сохранение...
+                </>
+              ) : (
+                <>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Создать краткое описание
+                </>
+              )}
+            </Button>
           </div>
+
+          {/* Summary Display */}
+          <SummaryDisplay 
+            summary={summary} 
+            videoTitle={videoTitle}
+            error={summaryError} 
+            isLoading={isProcessing}
+            canSave={canSave}
+            isSaving={isSaving}
+            onSave={handleSaveToHistory}
+          />
         </div>
       </div>
     </div>

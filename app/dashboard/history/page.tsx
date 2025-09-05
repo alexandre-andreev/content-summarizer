@@ -42,21 +42,23 @@ export default function HistoryPage() {
     setError(null)
     
     try {
-      // TODO: Implement getUserSummaries function
-      // const result = await getUserSummaries(
-      //   user.id,
-      //   {
-      //     search: searchQuery,
-      //     sortBy,
-      //     sortOrder,
-      //     page: currentPage,
-      //     limit: itemsPerPage
-      //   }
-      // )
-      
-      // Temporary mock data
-      setSummaries([])
-      setTotalCount(0)
+      const result = await databaseService.getUserSummaries(
+        user.id,
+        {
+          search: searchQuery,
+          sortBy,
+          sortOrder,
+          page: currentPage,
+          limit: itemsPerPage
+        }
+      )
+
+      if (result.error) {
+        setError(result.error.message)
+      } else {
+        setSummaries(result.summaries || [])
+        setTotalCount(result.totalCount || 0)
+      }
     } catch (err) {
       setError('Failed to load summaries')
     } finally {
@@ -215,72 +217,12 @@ export default function HistoryPage() {
               {summaries.map((summary) => (
                 <Card key={summary.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg mb-2">
-                          {summary.video_title || 'YouTube Video'}
-                        </h3>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {new Date(summary.created_at).toLocaleDateString()}
-                          </div>
-                          {summary.processing_time && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-4 h-4" />
-                              {(summary.processing_time / 1000).toFixed(1)}s
-                            </div>
-                          )}
-                          <a
-                            href={summary.youtube_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 hover:text-primary"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            Watch Video
-                          </a>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleFavorite(summary.id)}
-                        >
-                          {summary.is_favorite ? (
-                            <Heart className="w-4 h-4 text-red-500 fill-current" />
-                          ) : (
-                            <HeartOff className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteSummary(summary.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <p className="text-foreground leading-relaxed mb-4 line-clamp-4">
+                    <h3 className="font-semibold text-lg mb-2">
+                      {summary.video_title || 'YouTube Video'}
+                    </h3>
+                    <p className="text-foreground leading-relaxed">
                       {summary.summary_text}
                     </p>
-                    
-                    <div className="flex gap-2">
-                      {summary.is_favorite && (
-                        <Badge variant="secondary">
-                          <Heart className="w-3 h-3 mr-1" />
-                          Favorite
-                        </Badge>
-                      )}
-                      {summary.tags?.map((tag, index) => (
-                        <Badge key={index} variant="outline">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
                   </CardContent>
                 </Card>
               ))}

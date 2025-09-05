@@ -272,7 +272,6 @@ export default function DashboardPage() {
             
           </div>
           <div className="flex items-center gap-4">
-            
             <Button variant="outline" onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out

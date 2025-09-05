@@ -266,9 +266,11 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+            <h1 className="text-3xl font-bold text-foreground">
+              Добро пожаловать, {user.user_metadata?.display_name || user.email}
+            </h1>
             <p className="text-muted-foreground">
-              Welcome back, {user.user_metadata?.display_name || user.email}
+              Создайте новое описание видео
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -378,9 +380,9 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Create New Summary</CardTitle>
+                <CardTitle>Новое саммари</CardTitle>
                 <CardDescription>
-                  Enter a YouTube URL to generate an AI-powered summary
+                  Вставьте ссылку на YouTube видео для создания саммари с помощью AI
                 </CardDescription>
               </CardHeader>
               <CardContent>

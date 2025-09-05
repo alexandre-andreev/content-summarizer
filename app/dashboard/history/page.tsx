@@ -19,7 +19,7 @@ import {
   Trash2 
 } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
-// import { getUserSummaries, toggleSummaryFavorite, deleteSummary } from '@/lib/database'
+import { databaseService } from '@/lib/database'
 import type { Summary } from '@/lib/supabase/client'
 
 export default function HistoryPage() {
@@ -51,7 +51,7 @@ export default function HistoryPage() {
           search: searchQuery,
           sortBy,
           sortOrder,
-          page: currentPage,
+          offset: (currentPage - 1) * itemsPerPage,
           limit: itemsPerPage
         }
       )
@@ -84,26 +84,36 @@ export default function HistoryPage() {
   }
 
   const handleToggleFavorite = async (summaryId: string) => {
+    if (!user) return
+    
     try {
-      // TODO: Implement toggleSummaryFavorite function
-      // const result = await toggleSummaryFavorite(summaryId)
-      console.log('Toggle favorite:', summaryId)
-      setError('Feature coming soon!')
+      const result = await databaseService.toggleFavorite(summaryId, user.id)
+      if (result.error) {
+        setError('Failed to update favorite status')
+      } else {
+        // Refresh the list to show updated favorite status
+        await loadSummaries()
+      }
     } catch (err) {
       setError('Failed to update favorite status')
     }
   }
 
   const handleDeleteSummary = async (summaryId: string) => {
-    if (!confirm('Are you sure you want to delete this summary?')) {
+    if (!user) return
+    
+    if (!confirm('Вы уверены, что хотите удалить это саммари?')) {
       return
     }
     
     try {
-      // TODO: Implement deleteSummary function
-      // const result = await deleteSummary(summaryId)
-      console.log('Delete summary:', summaryId)
-      setError('Feature coming soon!')
+      const result = await databaseService.deleteSummary(summaryId, user.id)
+      if (result.error) {
+        setError('Failed to delete summary')
+      } else {
+        // Refresh the list to remove the deleted summary
+        await loadSummaries()
+      }
     } catch (err) {
       setError('Failed to delete summary')
     }
@@ -116,7 +126,7 @@ export default function HistoryPage() {
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Загрузка...</p>
         </div>
       </div>
     )
@@ -132,12 +142,12 @@ export default function HistoryPage() {
               onClick={() => router.push('/dashboard')}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
+              Назад к панели
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Summary History</h1>
+              <h1 className="text-3xl font-bold text-foreground">История саммари</h1>
               <p className="text-muted-foreground">
-                {totalCount} total summaries
+                Всего саммари: {totalCount}
               </p>
             </div>
           </div>
@@ -150,7 +160,7 @@ export default function HistoryPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
-                    placeholder="Search summaries..."
+                    placeholder="Поиск по саммари..."
                     value={searchQuery}
                     onChange={(e) => handleSearch(e.target.value)}
                     className="pl-10"
@@ -163,16 +173,16 @@ export default function HistoryPage() {
                   onChange={(e) => setSortBy(e.target.value as 'created_at' | 'video_title')}
                   className="px-3 py-2 border rounded-md bg-background"
                 >
-                  <option value="created_at">Sort by Date</option>
-                  <option value="video_title">Sort by Title</option>
+                  <option value="created_at">По дате</option>
+                  <option value="video_title">По названию</option>
                 </select>
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
                   className="px-3 py-2 border rounded-md bg-background"
                 >
-                  <option value="desc">Newest First</option>
-                  <option value="asc">Oldest First</option>
+                  <option value="desc">Новые сначала</option>
+                  <option value="asc">Старые сначала</option>
                 </select>
               </div>
             </div>
@@ -207,13 +217,13 @@ export default function HistoryPage() {
           <Card>
             <CardContent className="p-12 text-center">
               <p className="text-muted-foreground">
-                {searchQuery ? 'No summaries found matching your search.' : 'No summaries yet. Create your first one!'}
+                {searchQuery ? 'Ничего не найдено по вашему запросу.' : 'Пока нет саммари. Создайте первое!'}
               </p>
               <Button
                 className="mt-4"
                 onClick={() => router.push('/dashboard')}
               >
-                Create Summary
+                Создать саммари
               </Button>
             </CardContent>
           </Card>
@@ -223,15 +233,66 @@ export default function HistoryPage() {
               {summaries.map((summary) => (
                 <Card key={summary.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-6">
-                    <h3 className="font-semibold text-lg mb-2">
-                      {summary.video_title || 'YouTube Video'}
-                    </h3>
-                    <p className="text-foreground leading-relaxed">
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="font-semibold text-lg mb-1">
+                        {summary.video_title || 'YouTube Video'}
+                      </h3>
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleToggleFavorite(summary.id)}
+                          className={summary.is_favorite ? 'text-red-500' : 'text-gray-500'}
+                        >
+                          {summary.is_favorite ? (
+                            <Heart className="h-4 w-4 fill-current" />
+                          ) : (
+                            <HeartOff className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => window.open(summary.youtube_url, '_blank')}
+                          className="text-blue-500"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteSummary(summary.id)}
+                          className="text-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mb-3">
+                      <Badge variant="secondary" className="text-xs">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        {new Date(summary.created_at).toLocaleDateString('ru-RU')}
+                      </Badge>
+                      {summary.processing_time && (
+                        <Badge variant="outline" className="text-xs">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {summary.processing_time}ms
+                        </Badge>
+                      )}
+                      {summary.is_favorite && (
+                        <Badge variant="default" className="text-xs bg-red-100 text-red-700">
+                          Избранное
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <p className="text-foreground leading-relaxed text-sm">
                       {summary.summary_text}
                     </p>
                   </CardContent>
                 </Card>
-              ))}
+              ))}}
             </div>
 
             {totalPages > 1 && (
@@ -241,11 +302,11 @@ export default function HistoryPage() {
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage(prev => prev - 1)}
                 >
-                  Previous
+                  Предыдущая
                 </Button>
                 
                 <span className="text-sm text-muted-foreground px-4">
-                  Page {currentPage} of {totalPages}
+                  Страница {currentPage} из {totalPages}
                 </span>
                 
                 <Button
@@ -253,7 +314,7 @@ export default function HistoryPage() {
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage(prev => prev + 1)}
                 >
-                  Next
+                  Следующая
                 </Button>
               </div>
             )}

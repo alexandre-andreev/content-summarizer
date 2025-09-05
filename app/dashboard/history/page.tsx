@@ -38,7 +38,7 @@ export default function HistoryPage() {
   const [totalCount, setTotalCount] = useState(0)
   const itemsPerPage = 10
 
-  // Function to highlight search terms in text
+  // Function to highlight search terms in text (returns JSX for direct rendering)
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm.trim() || !text) return text
     
@@ -51,6 +51,79 @@ export default function HistoryPage() {
           {part}
         </span>
       ) : part
+    )
+  }
+
+  // Component to render markdown with search highlighting
+  const MarkdownWithHighlight = ({ text, searchTerm }: { text: string; searchTerm: string }) => {
+    if (!searchTerm.trim()) {
+      return (
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          <ReactMarkdown
+            components={{
+              h1: ({ children }) => (
+                <h1 className="text-lg font-semibold text-foreground mb-2 mt-2 first:mt-0">
+                  {children}
+                </h1>
+              ),
+              h2: ({ children }) => (
+                <h2 className="text-base font-medium text-foreground mb-2 mt-2 first:mt-0">
+                  {children}
+                </h2>
+              ),
+              h3: ({ children }) => (
+                <h3 className="text-sm font-medium text-foreground mb-1 mt-2 first:mt-0">
+                  {children}
+                </h3>
+              ),
+              p: ({ children }) => (
+                <p className="text-foreground leading-relaxed text-sm mb-2 last:mb-0">
+                  {children}
+                </p>
+              ),
+              ul: ({ children }) => (
+                <ul className="list-disc ml-4 mb-2 space-y-0.5 text-sm">
+                  {children}
+                </ul>
+              ),
+              ol: ({ children }) => (
+                <ol className="list-decimal ml-4 mb-2 space-y-0.5 text-sm">
+                  {children}
+                </ol>
+              ),
+              li: ({ children }) => (
+                <li className="text-foreground leading-relaxed text-sm">
+                  {children}
+                </li>
+              ),
+              strong: ({ children }) => (
+                <strong className="font-semibold text-foreground">
+                  {children}
+                </strong>
+              ),
+              em: ({ children }) => (
+                <em className="italic text-foreground">
+                  {children}
+                </em>
+              ),
+              code: ({ children }) => (
+                <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">
+                  {children}
+                </code>
+              ),
+            }}
+          >
+            {text}
+          </ReactMarkdown>
+        </div>
+      )
+    }
+
+    // When there's a search term, apply highlighting to the entire rendered markdown
+    return (
+      <div className="prose prose-sm max-w-none dark:prose-invert markdown-highlighted">
+        {highlightSearchTerm(text, searchTerm)}
+      </div>
     )
   }
 
@@ -318,65 +391,10 @@ export default function HistoryPage() {
                       )}
                     </div>
                     
-                    <div className="prose prose-sm max-w-none dark:prose-invert">
-                      <ReactMarkdown
-                        components={{
-                          // Compact styles for history cards
-                          h1: ({ children }) => (
-                            <h1 className="text-lg font-semibold text-foreground mb-2 mt-2 first:mt-0">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </h1>
-                          ),
-                          h2: ({ children }) => (
-                            <h2 className="text-base font-medium text-foreground mb-2 mt-2 first:mt-0">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </h2>
-                          ),
-                          h3: ({ children }) => (
-                            <h3 className="text-sm font-medium text-foreground mb-1 mt-2 first:mt-0">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </h3>
-                          ),
-                          p: ({ children }) => (
-                            <p className="text-foreground leading-relaxed text-sm mb-2 last:mb-0">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </p>
-                          ),
-                          ul: ({ children }) => (
-                            <ul className="list-disc ml-4 mb-2 space-y-0.5 text-sm">
-                              {children}
-                            </ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol className="list-decimal ml-4 mb-2 space-y-0.5 text-sm">
-                              {children}
-                            </ol>
-                          ),
-                          li: ({ children }) => (
-                            <li className="text-foreground leading-relaxed text-sm">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </li>
-                          ),
-                          strong: ({ children }) => (
-                            <strong className="font-semibold text-foreground">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </strong>
-                          ),
-                          em: ({ children }) => (
-                            <em className="italic text-foreground">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </em>
-                          ),
-                          code: ({ children }) => (
-                            <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">
-                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
-                            </code>
-                          ),
-                        }}
-                      >
-                        {summary.summary_text}
-                      </ReactMarkdown>
-                    </div>
+                    <MarkdownWithHighlight 
+                      text={summary.summary_text} 
+                      searchTerm={searchQuery} 
+                    />
                   </CardContent>
                 </Card>
               ))}}

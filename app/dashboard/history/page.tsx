@@ -38,10 +38,12 @@ export default function HistoryPage() {
 
   const loadSummaries = async () => {
     if (!user) return
-    
+
     setLoading(true)
     setError(null)
-    
+
+    console.log("Attempting to load summaries for user:", user.id)
+
     try {
       const result = await databaseService.getUserSummaries(
         user.id,
@@ -54,6 +56,8 @@ export default function HistoryPage() {
         }
       )
 
+      console.log("Result from getUserSummaries:", result)
+
       if (result.error) {
         setError(result.error.message)
       } else {
@@ -61,6 +65,7 @@ export default function HistoryPage() {
         setTotalCount(result.count || 0)
       }
     } catch (err) {
+      console.error("Error loading summaries:", err)
       setError('Failed to load summaries')
     } finally {
       setLoading(false)

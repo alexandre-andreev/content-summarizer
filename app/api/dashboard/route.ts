@@ -47,22 +47,13 @@ export async function GET(req: NextRequest) {
     try {
       console.log('📊 Starting optimized dashboard data queries...')
       
-      // Use Promise.all for parallel execution as per memory requirements
-      const [totalResult, recentResult, favoriteResult, weekResult] = await Promise.all([
+      // Use Promise.all for parallel execution of only needed queries
+      const [totalResult, favoriteResult] = await Promise.all([
         // Get total summaries count
         supabaseAdmin
           .from('summaries')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
-          .abortSignal(controller.signal),
-        
-        // Get recent summaries (last 3 for optimal loading)
-        supabaseAdmin
-          .from('summaries')
-          .select('id, youtube_url, video_id, video_title, summary_text, created_at, is_favorite, processing_time')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(3)
           .abortSignal(controller.signal),
         
         // Get favorite count
@@ -71,19 +62,7 @@ export async function GET(req: NextRequest) {
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('is_favorite', true)
-          .abortSignal(controller.signal),
-        
-        // Get this week's count
-        (() => {
-          const oneWeekAgo = new Date()
-          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-          return supabaseAdmin
-            .from('summaries')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .gte('created_at', oneWeekAgo.toISOString())
-            .abortSignal(controller.signal)
-        })()
+          .abortSignal(controller.signal)
       ])
 
       clearTimeout(timeoutId)
@@ -93,32 +72,20 @@ export async function GET(req: NextRequest) {
         console.error('❌ Error getting total count:', totalResult.error)
         throw totalResult.error
       }
-      if (recentResult.error) {
-        console.error('❌ Error getting recent summaries:', recentResult.error)
-        throw recentResult.error
-      }
       if (favoriteResult.error) {
         console.error('❌ Error getting favorite count:', favoriteResult.error)
         throw favoriteResult.error
-      }
-      if (weekResult.error) {
-        console.error('❌ Error getting week count:', weekResult.error)
-        throw weekResult.error
       }
 
       console.log('✅ All dashboard queries completed successfully')
       console.log('📈 Dashboard stats:', {
         total: totalResult.count,
-        recent: recentResult.data?.length,
-        favorites: favoriteResult.count,
-        thisWeek: weekResult.count
+        favorites: favoriteResult.count
       })
 
       const dashboardData = {
         totalSummaries: totalResult.count || 0,
-        recentSummaries: recentResult.data || [],
-        favoriteCount: favoriteResult.count || 0,
-        thisWeekCount: weekResult.count || 0
+        favoriteCount: favoriteResult.count || 0
       }
 
       return NextResponse.json({
@@ -135,9 +102,7 @@ export async function GET(req: NextRequest) {
           error: 'Превышено время ожидания загрузки данных (8 секунд)',
           data: {
             totalSummaries: 0,
-            recentSummaries: [],
-            favoriteCount: 0,
-            thisWeekCount: 0
+            favoriteCount: 0
           }
         }, { status: 408 })
       }
@@ -148,9 +113,7 @@ export async function GET(req: NextRequest) {
         details: queryError.message,
         data: {
           totalSummaries: 0,
-          recentSummaries: [],
-          favoriteCount: 0,
-          thisWeekCount: 0
+          favoriteCount: 0
         }
       }, { status: 500 })
     }
@@ -162,9 +125,7 @@ export async function GET(req: NextRequest) {
       details: error.message,
       data: {
         totalSummaries: 0,
-        recentSummaries: [],
-        favoriteCount: 0,
-        thisWeekCount: 0
+        favoriteCount: 0
       }
     }, { status: 500 })
   }

@@ -24,9 +24,7 @@ import type { Summary } from '@/lib/supabase/client'
 
 interface DashboardData {
   totalSummaries: number
-  recentSummaries: Summary[]
   favoriteCount: number
-  thisWeekCount: number
 }
 
 export default function DashboardPage() {
@@ -235,9 +233,7 @@ export default function DashboardPage() {
         // Set default data even on error to keep UI functional
         setDashboardData({
           totalSummaries: 0,
-          recentSummaries: [],
-          favoriteCount: 0,
-          thisWeekCount: 0
+          favoriteCount: 0
         })
         
         setError(errorData.error || 'Ошибка загрузки данных панели')
@@ -250,9 +246,7 @@ export default function DashboardPage() {
       if (result.success && result.data) {
         console.log('Setting dashboard data from API:', {
           totalSummaries: result.data.totalSummaries,
-          recentSummaries: result.data.recentSummaries?.length || 0,
-          favoriteCount: result.data.favoriteCount,
-          thisWeekCount: result.data.thisWeekCount
+          favoriteCount: result.data.favoriteCount
         })
         setDashboardData(result.data)
         setError(null) // Clear any previous errors
@@ -260,9 +254,7 @@ export default function DashboardPage() {
         // Even if not successful, use the provided data to keep UI functional
         setDashboardData(result.data || {
           totalSummaries: 0,
-          recentSummaries: [],
-          favoriteCount: 0,
-          thisWeekCount: 0
+          favoriteCount: 0
         })
         setError(result.error || 'Неизвестная ошибка API панели управления')
       }
@@ -273,9 +265,7 @@ export default function DashboardPage() {
       // Set empty data to allow UI to remain functional
       setDashboardData({
         totalSummaries: 0,
-        recentSummaries: [],
-        favoriteCount: 0,
-        thisWeekCount: 0
+        favoriteCount: 0
       })
       
       if (err.name === 'AbortError') {
@@ -515,9 +505,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="space-y-8">
           {/* Create New Summary */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="max-w-4xl mx-auto space-y-6">
             <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
 
             <SummaryDisplay 
@@ -531,52 +521,15 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Recent Summaries */}
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Последние описания видео</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {loading ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-3 w-3/4" />
-                      <Skeleton className="h-3 w-1/2" />
-                    </div>
-                  ))
-                ) : dashboardData?.recentSummaries.length ? (
-                  dashboardData.recentSummaries.map((summary) => (
-                    <div key={summary.id} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                      <h4 className="font-medium text-sm line-clamp-2">
-                        {summary.video_title || 'YouTube Video'}
-                      </h4>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(summary.created_at).toLocaleDateString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                        {summary.summary_text.substring(0, 100)}...
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No summaries yet. Create your first one above!
-                  </p>
-                )}
-
-                {dashboardData?.recentSummaries.length ? (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => router.push('/dashboard/history')}
-                  >
-                    Посмотреть все описания
-                  </Button>
-                ) : null}
-              </CardContent>
-            </Card>
+          {/* View All Descriptions Button */}
+          <div className="flex justify-center">
+            <Button
+              onClick={() => router.push('/dashboard/history')}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <History className="mr-2 h-4 w-4" />
+              Посмотреть все описания
+            </Button>
           </div>
         </div>
       </div>

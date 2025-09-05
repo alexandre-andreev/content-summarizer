@@ -23,12 +23,12 @@ export function EmergencyRecovery() {
   return (
     <Button
       onClick={handleEmergencyReload}
-      variant=\"destructive\"
-      size=\"sm\"
-      className=\"fixed bottom-4 right-4 z-[9999] shadow-lg\"
-      title=\"Если страница зависла, нажмите для принудительной перезагрузки\"
+      variant="destructive"
+      size="sm"
+      className="fixed bottom-4 right-4 z-[9999] shadow-lg"
+      title="Если страница зависла, нажмите для принудительной перезагрузки"
     >
-      <RotateCcw className=\"mr-1 h-3 w-3\" />
+      <RotateCcw className="mr-1 h-3 w-3" />
       Экстренное восстановление
     </Button>
   )

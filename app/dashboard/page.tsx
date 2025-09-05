@@ -448,71 +448,66 @@ export default function DashboardPage() {
 
         {/* Main Content */}
         <div className="max-w-4xl mx-auto space-y-8">
-          {/* Stats Cards - Match UrlForm width */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {error && (
-              <div className="col-span-2 mb-4">
-                <Alert variant="destructive">
+          {/* Combined Stats Card */}
+          <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
+            <CardContent className="p-6">
+              {error && (
+                <Alert variant="destructive" className="mb-4">
                   <AlertDescription>
                     {error}
                   </AlertDescription>
                 </Alert>
-              </div>
-            )}
-            
-            {loading && !dashboardData ? (
-              Array.from({ length: 2 }).map((_, i) => (
-                <Card key={i}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <Skeleton className="h-4 w-20" />
+              )}
+              
+              {loading && !dashboardData ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
                     <Skeleton className="h-4 w-4" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-8 w-16 mb-1" />
-                    <Skeleton className="h-3 w-24" />
-                  </CardContent>
-                </Card>
-              ))
-            ) : dashboardData ? (
-              <>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Получено описаний</CardTitle>
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{dashboardData.totalSummaries}</div>
-                    <p className="text-xs text-muted-foreground">За все время</p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">В избранном</CardTitle>
-                    <Heart className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{dashboardData.favoriteCount}</div>
-                    <p className="text-xs text-muted-foreground">Отмечено</p>
-                  </CardContent>
-                </Card>
-              </>
-            ) : null}
-          </div>
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-6 w-16" />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <Skeleton className="h-4 w-4" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-6 w-16" />
+                  </div>
+                  <div className="pt-2">
+                    <Skeleton className="h-12 w-64 mx-auto" />
+                  </div>
+                </div>
+              ) : dashboardData ? (
+                <div className="space-y-6">
+                  {/* Statistics */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">Получено описаний</span>
+                      <span className="text-2xl font-bold text-foreground">{dashboardData.totalSummaries}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Heart className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium text-foreground">В избранном</span>
+                      <span className="text-2xl font-bold text-foreground">{dashboardData.favoriteCount}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Centered Button */}
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      onClick={() => router.push('/dashboard/history')}
+                      className="h-12 text-base font-semibold bg-primary hover:bg-primary/90 px-8"
+                    >
+                      <History className="mr-2 h-4 w-4" />
+                      Посмотреть все описания
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
 
           {/* Create New Summary Form */}
           <UrlForm onSubmit={handleSummarize} isLoading={isProcessing} />
-
-          {/* View All Descriptions Button - Aligned with UrlForm submit button */}
-          <div className="flex justify-center">
-            <Button
-              onClick={() => router.push('/dashboard/history')}
-              className="h-12 text-base font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground px-8"
-            >
-              <History className="mr-2 h-4 w-4" />
-              Посмотреть все описания
-            </Button>
-          </div>
 
           {/* Summary Display */}
           <SummaryDisplay 

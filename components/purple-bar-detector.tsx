@@ -1,6 +1,9 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 
 interface PurpleBarDetectorProps {
   onPurpleBarDetected?: () => void
@@ -10,92 +13,44 @@ interface PurpleBarDetectorProps {
 
 export function PurpleBarDetector({ 
   onPurpleBarDetected, 
-  checkInterval = 2000,  // Faster checking
+  checkInterval = 3000,
   enabled = true 
 }: PurpleBarDetectorProps) {
   const detectionRef = useRef(0)
-  const lastValidContentRef = useRef('')
-  const isRecoveryRunningRef = useRef(false)
+  const [showRefreshMessage, setShowRefreshMessage] = useState(false)
 
   useEffect(() => {
     if (!enabled) return
 
     const detectPurpleBars = () => {
       try {
-        // Don't detect during recovery
-        if (isRecoveryRunningRef.current) {
-          console.log('Skipping detection - recovery in progress')
-          return
-        }
         const bodyText = document.body.textContent || ''
         const bodyHTML = document.body.innerHTML || ''
         
-        // Enhanced detection methods for purple bars
+        // Simple detection for purple bars
         const indicators = {
-          // Basic content checks
           emptyContent: bodyText.length < 50,
           veryShortContent: bodyText.length < 200 && bodyText.includes('История'),
-          
-          // Purple bar character patterns
-          purpleChars: bodyText.includes('████') || bodyText.includes('▓▓▓▓') || bodyText.includes('░░░░'),
-          blockChars: /[█▓▒░]{4,}/.test(bodyText),
-          
-          // UI corruption indicators
+          purpleChars: bodyText.includes('████') || bodyText.includes('▓▓▓▓'),
           stuckSkeletons: document.querySelectorAll('[class*="skeleton"]').length > 3,
-          perpetualSpinners: document.querySelectorAll('.animate-spin').length > 1,
           missingCards: document.querySelectorAll('.card').length === 0 && bodyText.includes('саммари'),
-          
-          // Content corruption
-          corruptedHTML: bodyHTML.includes('undefined') || bodyHTML.includes('null') || bodyHTML.includes('[object Object]'),
-          emptyDivs: document.querySelectorAll('div:empty').length > 10,
-          
-          // Navigation issues
-          missingButtons: document.querySelectorAll('button').length < 2 && bodyText.includes('История'),
-          brokenLayout: !document.querySelector('[class*="container"]') && bodyText.includes('саммари')
         }
         
         const detectedCount = Object.values(indicators).filter(Boolean).length
-        const hasValidContent = bodyText.length > 300 && !indicators.purpleChars && !indicators.blockChars
+        const shouldShow = detectedCount >= 2 || indicators.purpleChars
         
-        // Store last valid content for comparison
-        if (hasValidContent) {
-          lastValidContentRef.current = bodyText.substring(0, 100)
-        }
-        
-        // Detection logic: need multiple indicators OR obvious corruption
-        const shouldTrigger = detectedCount >= 2 || 
-                             indicators.purpleChars || 
-                             indicators.blockChars ||
-                             (bodyText.length < 100 && bodyText.includes('История'))
-        
-        if (shouldTrigger) {
+        if (shouldShow) {
           detectionRef.current++
+          console.warn(`🟣 Purple bars detected (${detectionRef.current}):`, indicators)
           
-          // Dispatch debug event
-          window.dispatchEvent(new CustomEvent('purpleBarDebug', {
-            detail: `Detection ${detectionRef.current}: ${Object.entries(indicators).filter(([k,v]) => v).map(([k]) => k).join(', ')}`
-          }))
-          
-          console.warn(`🟣 Purple bars detected (${detectionRef.current}):`, {
-            indicators,
-            detectedCount,
-            bodyTextLength: bodyText.length,
-            bodyPreview: bodyText.substring(0, 100),
-            lastValidContent: lastValidContentRef.current
-          })
-          
-          // Trigger recovery after 2 consecutive detections to avoid false positives
-          if (detectionRef.current >= 2 && onPurpleBarDetected) {
-            console.error('🚨 Confirmed purple bars - triggering recovery')
-            window.dispatchEvent(new CustomEvent('purpleBarDebug', {
-              detail: 'RECOVERY TRIGGERED'
-            }))
-            onPurpleBarDetected()
-            detectionRef.current = 0 // Reset counter
+          // Show refresh message after 2 consecutive detections
+          if (detectionRef.current >= 2) {
+            setShowRefreshMessage(true)
           }
         } else {
-          // Reset counter if no issues detected
+          // Reset if content is good
           detectionRef.current = 0
+          setShowRefreshMessage(false)
         }
         
       } catch (error) {
@@ -103,56 +58,45 @@ export function PurpleBarDetector({
       }
     }
 
-    // Immediate check on mount
-    setTimeout(detectPurpleBars, 500)
-    
-    // Periodic checks
+    // Check every 3 seconds
     const interval = setInterval(detectPurpleBars, checkInterval)
     
-    // Check on visibility change (tab switching)
+    // Check on visibility change
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('Tab became visible - checking for purple bars')
-        setTimeout(detectPurpleBars, 300)
-        setTimeout(detectPurpleBars, 1000) // Double check
+        setTimeout(detectPurpleBars, 1000)
       }
-    }
-    
-    // Check on focus events
-    const handleFocus = () => {
-      if (!isRecoveryRunningRef.current) {
-        setTimeout(detectPurpleBars, 200)
-      }
-    }
-    
-    // Listen for emergency recovery events
-    const handleRecoveryStart = () => {
-      console.log('Emergency recovery started - disabling purple bar detection')
-      isRecoveryRunningRef.current = true
-      detectionRef.current = 0 // Reset detection counter
-    }
-    
-    const handleRecoveryComplete = () => {
-      console.log('Emergency recovery completed - re-enabling purple bar detection')
-      isRecoveryRunningRef.current = false
-      detectionRef.current = 0
-      // Wait a bit then resume detection
-      setTimeout(detectPurpleBars, 2000)
     }
     
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleFocus)
-    window.addEventListener('emergencyRecoveryStart', handleRecoveryStart)
-    window.addEventListener('emergencyRecoveryComplete', handleRecoveryComplete)
     
     return () => {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('emergencyRecoveryStart', handleRecoveryStart)
-      window.removeEventListener('emergencyRecoveryComplete', handleRecoveryComplete)
     }
-  }, [onPurpleBarDetected, checkInterval, enabled])
+  }, [checkInterval, enabled])
 
-  return null
+  const handleRefresh = () => {
+    window.location.reload()
+  }
+
+  if (!showRefreshMessage) {
+    return null
+  }
+
+  return (
+    <Alert className="fixed top-4 left-4 right-4 z-50 max-w-lg mx-auto bg-blue-50 border-blue-200">
+      <AlertTriangle className="h-4 w-4" />
+      <AlertDescription className="flex items-center justify-between">
+        <div className="flex-1 mr-4">
+          <strong className="block mb-1">Проблема с отображением данных</strong>
+          <span className="text-sm">Перезагрузите браузер, чтобы продолжить!</span>
+        </div>
+        <Button onClick={handleRefresh} size="sm" className="ml-2">
+          <RefreshCw className="mr-1 h-3 w-3" />
+          Обновить
+        </Button>
+      </AlertDescription>
+    </Alert>
+  )
 }

@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -8,12 +6,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AppRecovery } from '@/components/app-recovery'
-import { PerformanceMonitor } from '@/components/performance-monitor'
 import { BrowserTabManager } from '@/components/browser-tab-manager'
-import { EmergencyRecovery } from '@/components/emergency-recovery'
 import { PurpleBarDetector } from '@/components/purple-bar-detector'
-import { DebugDetector } from '@/components/debug-detector'
 import { 
   ArrowLeft, 
   Search, 
@@ -34,16 +28,14 @@ export default function HistoryPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const [summaries, setSummaries] = useState<Summary[]>([])
-  console.log("Summaries state:", summaries)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchInput, setSearchInput] = useState('')  // Separate state for input field
+  const [searchInput, setSearchInput] = useState('')
   const [sortBy, setSortBy] = useState<'created_at' | 'video_title'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const [isTabVisible, setIsTabVisible] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [lastCacheTime, setLastCacheTime] = useState<number>(0)
   const itemsPerPage = 10
@@ -55,7 +47,7 @@ export default function HistoryPage() {
     return Date.now() - lastCacheTime < CACHE_DURATION
   }
 
-  // Function to highlight search terms in text (returns JSX for direct rendering)
+  // Function to highlight search terms in text
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm.trim() || !text) return text
     
@@ -136,7 +128,6 @@ export default function HistoryPage() {
       )
     }
 
-    // When there's a search term, apply highlighting to the entire rendered markdown
     return (
       <div className="prose prose-sm max-w-none dark:prose-invert markdown-highlighted">
         {highlightSearchTerm(text, searchTerm)}
@@ -170,14 +161,12 @@ export default function HistoryPage() {
         }
       )
 
-      console.log("Result from getUserSummaries:", result)
-
       if (result.error) {
         setError(result.error.message)
       } else {
         setSummaries(result.summaries || [])
         setTotalCount(result.count || 0)
-        setLastCacheTime(Date.now()) // Update cache timestamp
+        setLastCacheTime(Date.now())
       }
     } catch (err) {
       console.error("Error loading summaries:", err)
@@ -191,7 +180,7 @@ export default function HistoryPage() {
   const handleManualRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await loadSummaries(true) // Force refresh
+      await loadSummaries(true)
       console.log('✅ Manual refresh completed')
     } catch (error) {
       console.error('❌ Manual refresh failed:', error)
@@ -203,108 +192,24 @@ export default function HistoryPage() {
 
   useEffect(() => {
     if (user) {
-      // Force refresh when search, sort, or page changes
       const needsRefresh = searchQuery !== '' || sortBy !== 'created_at' || sortOrder !== 'desc' || currentPage !== 1
       loadSummaries(needsRefresh)
     }
   }, [user, searchQuery, sortBy, sortOrder, currentPage])
 
-  // Handle tab visibility changes to prevent browser suspension issues
+  // Simple tab visibility handling
   useEffect(() => {
-    // Purple bar monitoring system
-    const monitorPurpleBars = () => {
-      const bodyText = document.body.textContent || ''
-      const hasContent = bodyText.length > 200
-      const hasValidData = summaries.length > 0 || loading
-      const hasSkeletonLoaders = document.querySelectorAll('[class*="skeleton"]').length
-      const hasSpinners = document.querySelectorAll('.animate-spin').length
-      
-      // Detect purple bars: no content, perpetual loading, or corrupted display
-      if (!hasContent || (hasSkeletonLoaders > 3 && !loading) || (hasSpinners > 0 && !loading)) {
-        console.warn('🟣 Potential purple bars detected:', {
-          bodyTextLength: bodyText.length,
-          hasSkeletonLoaders,
-          hasSpinners,
-          loading,
-          summariesCount: summaries.length
-        })
-        
-        // Auto-trigger recovery if stuck for more than 3 seconds
-        setTimeout(() => {
-          const stillStuck = document.body.textContent?.length < 200
-          if (stillStuck) {
-            console.error('🚨 Purple bars confirmed - triggering auto-recovery')
-            handleHistoryRecovery()
-          }
-        }, 3000)
-      }
-    }
-    
-    // Monitor every 5 seconds
-    const purpleBarInterval = setInterval(monitorPurpleBars, 5000)
-    
     const handleVisibilityChange = () => {
-      const isVisible = !document.hidden
-      setIsTabVisible(isVisible)
-      
-      if (isVisible) {
-        console.log('History page became visible - checking data state')
-        
-        // Immediate purple bar check when tab becomes visible
-        setTimeout(monitorPurpleBars, 1000)
-        
-        // If tab was hidden and now visible, refresh data if needed
-        if (user && !loading) {
-          console.log('Refreshing history data after tab became visible')
-          loadSummaries(true) // Force refresh after tab switch
-        }
-      } else {
-        console.log('History page became hidden')
-      }
-    }
-
-    // Also handle window focus/blur for additional browser support
-    const handleFocus = () => {
-      console.log('History page window focused - ensuring data is current')
-      if (user && !loading) {
-        // Small delay to allow browser to stabilize
-        setTimeout(() => {
-          console.log('Performing history page focus recovery check')
-          loadSummaries()
-        }, 100)
-      }
-    }
-
-    const handleBlur = () => {
-      console.log('History page window blurred')
-    }
-
-    // Handle corruption events from BrowserTabManager
-    const handlePageCorrupted = (event: CustomEvent) => {
-      console.error('🚨 History page corruption detected:', event.detail)
-      handleHistoryRecovery()
-    }
-
-    const handlePageSlow = (event: CustomEvent) => {
-      console.warn('⚠️ History page performance degraded:', event.detail)
-      if (user && !loading) {
-        loadSummaries()
+      if (!document.hidden && user && !loading) {
+        console.log('Tab became visible - refreshing data')
+        loadSummaries(true)
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleFocus)
-    window.addEventListener('blur', handleBlur)
-    window.addEventListener('pageCorrupted', handlePageCorrupted as EventListener)
-    window.addEventListener('pageSlow', handlePageSlow as EventListener)
-
+    
     return () => {
-      clearInterval(purpleBarInterval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleFocus)
-      window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('pageCorrupted', handlePageCorrupted as EventListener)
-      window.removeEventListener('pageSlow', handlePageSlow as EventListener)
     }
   }, [user, loading])
 
@@ -321,7 +226,6 @@ export default function HistoryPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchInput(e.target.value)
-    // If input is cleared, immediately clear the search
     if (e.target.value === '') {
       handleSearch('')
     }
@@ -335,7 +239,6 @@ export default function HistoryPage() {
       if (result.error) {
         setError('Failed to update favorite status')
       } else {
-        // Refresh the list to show updated favorite status
         await loadSummaries(true)
       }
     } catch (err) {
@@ -355,129 +258,10 @@ export default function HistoryPage() {
       if (result.error) {
         setError('Failed to delete summary')
       } else {
-        // Refresh the list to remove the deleted summary
         await loadSummaries(true)
       }
     } catch (err) {
       setError('Failed to delete summary')
-    }
-  }
-
-  const handleHistoryRecovery = async () => {
-    console.log('🔄 Starting aggressive history page recovery...')
-    
-    try {
-      // Step 1: Stop all timers and clear detection loops
-      const intervals = window.setInterval(() => {}, 0) - 1
-      for (let i = 1; i <= intervals; i++) {
-        window.clearInterval(i)
-      }
-      
-      // Step 2: Immediately stop flashing with aggressive CSS
-      const antiFlashStyle = document.createElement('style')
-      antiFlashStyle.id = 'emergency-anti-flash'
-      antiFlashStyle.textContent = `
-        * {
-          animation: none !important;
-          transition: none !important;
-          opacity: 1 !important;
-          visibility: visible !important;
-        }
-        body {
-          display: block !important;
-          visibility: visible !important;
-        }
-        .animate-spin {
-          animation: none !important;
-        }
-      `
-      document.head.appendChild(antiFlashStyle)
-      
-      // Step 3: Clear all corrupted DOM elements
-      const skeletons = document.querySelectorAll('[class*="skeleton"]')
-      const spinners = document.querySelectorAll('.animate-spin:not(button *)')
-      
-      skeletons.forEach(el => el.remove())
-      spinners.forEach(el => el.remove())
-      
-      // Step 4: Force complete DOM reset
-      document.body.style.transform = 'translateZ(0)' // Force GPU layer
-      document.body.style.visibility = 'hidden'
-      document.body.offsetHeight // Force reflow
-      document.body.style.visibility = 'visible'
-      document.body.style.transform = ''
-      
-      console.log('🔄 DOM cleanup completed')
-      
-      // Step 5: Reset React state completely
-      setLoading(false) // Stop loading immediately
-      setError(null)
-      setSummaries([])
-      setTotalCount(0)
-      
-      console.log('🔄 State reset completed')
-      
-      // Step 6: Force data reload with timeout
-      if (user) {
-        console.log('🔄 Forcing data reload...')
-        setLoading(true)
-        
-        try {
-          const result = await Promise.race([
-            databaseService.getUserSummaries(
-              user.id,
-              {
-                search: searchQuery,
-                sortBy,
-                sortOrder,
-                offset: (currentPage - 1) * itemsPerPage,
-                limit: itemsPerPage
-              }
-            ),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Recovery timeout')), 5000)
-            )
-          ])
-          
-          if (result.error) {
-            throw new Error(result.error.message)
-          }
-          
-          setSummaries(result.summaries || [])
-          setTotalCount(result.count || 0)
-          setError(null)
-          
-          console.log('✅ Data reload successful')
-          
-        } catch (dataError) {
-          console.error('❌ Data reload failed:', dataError)
-          setError('Ошибка загрузки данных')
-        } finally {
-          setLoading(false)
-        }
-      }
-      
-      // Step 7: Remove anti-flash styles after recovery
-      setTimeout(() => {
-        const style = document.getElementById('emergency-anti-flash')
-        if (style) {
-          style.remove()
-        }
-        
-        // Final check - if still broken, force reload
-        const bodyText = document.body.textContent || ''
-        if (bodyText.length < 200 || bodyText.includes('████')) {
-          console.warn('⚠️ Recovery still incomplete, forcing page reload')
-          window.location.reload()
-        } else {
-          console.log('✅ Recovery completed successfully')
-        }
-      }, 3000)
-      
-    } catch (error) {
-      console.error('❌ Recovery failed completely:', error)
-      // Last resort - force page reload
-      setTimeout(() => window.location.reload(), 1000)
     }
   }
 
@@ -497,11 +281,7 @@ export default function HistoryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <BrowserTabManager />
-      <PerformanceMonitor onPerformanceIssue={(issue) => console.warn('History page performance issue:', issue)} />
-      <AppRecovery onRecover={handleHistoryRecovery} />
-      <EmergencyRecovery />
-      <PurpleBarDetector onPurpleBarDetected={handleHistoryRecovery} />
-      <DebugDetector />
+      <PurpleBarDetector />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
@@ -681,7 +461,7 @@ export default function HistoryPage() {
                     />
                   </CardContent>
                 </Card>
-              ))}}
+              ))}
             </div>
 
             {totalPages > 1 && (

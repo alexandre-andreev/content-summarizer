@@ -57,7 +57,7 @@ export default function HistoryPage() {
         setError(result.error.message)
       } else {
         setSummaries(result.summaries || [])
-        setTotalCount(result.totalCount || 0)
+        setTotalCount(result.count || 0)
       }
     } catch (err) {
       setError('Failed to load summaries')

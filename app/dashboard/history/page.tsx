@@ -21,6 +21,7 @@ import {
 import { useAuth } from '@/components/auth/auth-provider'
 import { databaseService } from '@/lib/database'
 import type { Summary } from '@/lib/supabase/client'
+import ReactMarkdown from 'react-markdown'
 
 export default function HistoryPage() {
   const router = useRouter()
@@ -39,7 +40,7 @@ export default function HistoryPage() {
 
   // Function to highlight search terms in text
   const highlightSearchTerm = (text: string, searchTerm: string) => {
-    if (!searchTerm.trim()) return text
+    if (!searchTerm.trim() || !text) return text
     
     const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
     const parts = text.split(regex)
@@ -317,9 +318,65 @@ export default function HistoryPage() {
                       )}
                     </div>
                     
-                    <p className="text-foreground leading-relaxed text-sm">
-                      {highlightSearchTerm(summary.summary_text, searchQuery)}
-                    </p>
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                      <ReactMarkdown
+                        components={{
+                          // Compact styles for history cards
+                          h1: ({ children }) => (
+                            <h1 className="text-lg font-semibold text-foreground mb-2 mt-2 first:mt-0">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 className="text-base font-medium text-foreground mb-2 mt-2 first:mt-0">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="text-sm font-medium text-foreground mb-1 mt-2 first:mt-0">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </h3>
+                          ),
+                          p: ({ children }) => (
+                            <p className="text-foreground leading-relaxed text-sm mb-2 last:mb-0">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </p>
+                          ),
+                          ul: ({ children }) => (
+                            <ul className="list-disc ml-4 mb-2 space-y-0.5 text-sm">
+                              {children}
+                            </ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal ml-4 mb-2 space-y-0.5 text-sm">
+                              {children}
+                            </ol>
+                          ),
+                          li: ({ children }) => (
+                            <li className="text-foreground leading-relaxed text-sm">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </li>
+                          ),
+                          strong: ({ children }) => (
+                            <strong className="font-semibold text-foreground">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </strong>
+                          ),
+                          em: ({ children }) => (
+                            <em className="italic text-foreground">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </em>
+                          ),
+                          code: ({ children }) => (
+                            <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">
+                              {highlightSearchTerm(children?.toString() || '', searchQuery)}
+                            </code>
+                          ),
+                        }}
+                      >
+                        {summary.summary_text}
+                      </ReactMarkdown>
+                    </div>
                   </CardContent>
                 </Card>
               ))}}

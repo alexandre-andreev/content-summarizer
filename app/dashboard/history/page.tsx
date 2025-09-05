@@ -13,6 +13,7 @@ import { PerformanceMonitor } from '@/components/performance-monitor'
 import { BrowserTabManager } from '@/components/browser-tab-manager'
 import { EmergencyRecovery } from '@/components/emergency-recovery'
 import { PurpleBarDetector } from '@/components/purple-bar-detector'
+import { DebugDetector } from '@/components/debug-detector'
 import { 
   ArrowLeft, 
   Search, 
@@ -332,26 +333,50 @@ export default function HistoryPage() {
   const handleHistoryRecovery = async () => {
     console.log('🔄 Performing enhanced history page recovery...')
     
-    // Force clear any stuck animations or corrupted styles
-    const style = document.createElement('style')
-    style.textContent = `
+    // Immediately stop any flashing by fixing styles
+    const antiFlashStyle = document.createElement('style')
+    antiFlashStyle.textContent = `
       * {
         animation: none !important;
         transition: none !important;
+        opacity: 1 !important;
+      }
+      body {
+        visibility: visible !important;
+        display: block !important;
       }
     `
-    document.head.appendChild(style)
+    document.head.appendChild(antiFlashStyle)
     
-    // Force DOM repaint to clear purple bars
-    document.body.style.display = 'none'
-    document.body.offsetHeight // Trigger reflow
-    document.body.style.display = ''
-    
-    // Reset all states to clean state
+    // Reset all states to clean state first
     setLoading(true)
     setError(null)
     setSummaries([])
     setTotalCount(0)
+    
+    // Force DOM cleanup to prevent flashing
+    try {
+      // Remove any corrupted elements that might cause flashing
+      const skeletons = document.querySelectorAll('[class*="skeleton"]')
+      const spinners = document.querySelectorAll('.animate-spin')
+      
+      skeletons.forEach(el => el.remove())
+      spinners.forEach(el => {
+        if (!el.closest('button')) { // Keep button spinners
+          el.remove()
+        }
+      })
+      
+      // Force repaint to clear purple bars
+      document.body.style.transform = 'translateZ(0)' // Force GPU layer
+      document.body.style.visibility = 'hidden'
+      document.body.offsetHeight // Trigger reflow
+      document.body.style.visibility = 'visible'
+      document.body.style.transform = ''
+      
+    } catch (domError) {
+      console.warn('DOM cleanup failed:', domError)
+    }
     
     try {
       // Force reload summaries data with retry logic
@@ -365,12 +390,19 @@ export default function HistoryPage() {
       setLoading(false)
     }
     
-    // Remove forced styles after recovery
+    // Remove anti-flash styles after recovery completes
     setTimeout(() => {
-      if (style.parentNode) {
-        document.head.removeChild(style)
+      if (antiFlashStyle.parentNode) {
+        document.head.removeChild(antiFlashStyle)
       }
-    }, 2000)
+      
+      // Final check - if still broken, force reload
+      const bodyText = document.body.textContent || ''
+      if (bodyText.length < 200 || bodyText.includes('████')) {
+        console.warn('⚠️ Recovery incomplete, forcing page reload')
+        window.location.reload()
+      }
+    }, 3000)
     
     console.log('✅ History page recovery completed')
   }
@@ -395,6 +427,7 @@ export default function HistoryPage() {
       <AppRecovery onRecover={handleHistoryRecovery} />
       <EmergencyRecovery />
       <PurpleBarDetector onPurpleBarDetected={handleHistoryRecovery} />
+      <DebugDetector />
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">

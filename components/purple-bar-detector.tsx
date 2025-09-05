@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface PurpleBarDetectorProps {
   onPurpleBarDetected?: () => void
@@ -10,9 +10,11 @@ interface PurpleBarDetectorProps {
 
 export function PurpleBarDetector({ 
   onPurpleBarDetected, 
-  checkInterval = 3000,
+  checkInterval = 2000,  // Faster checking
   enabled = true 
 }: PurpleBarDetectorProps) {
+  const detectionRef = useRef(0)
+  const lastValidContentRef = useRef('')
 
   useEffect(() => {
     if (!enabled) return
@@ -22,25 +24,72 @@ export function PurpleBarDetector({
         const bodyText = document.body.textContent || ''
         const bodyHTML = document.body.innerHTML || ''
         
-        // Multiple detection methods for purple bars
+        // Enhanced detection methods for purple bars
         const indicators = {
-          emptyContent: bodyText.length < 100,
+          // Basic content checks
+          emptyContent: bodyText.length < 50,
+          veryShortContent: bodyText.length < 200 && bodyText.includes('История'),
+          
+          // Purple bar character patterns
           purpleChars: bodyText.includes('████') || bodyText.includes('▓▓▓▓') || bodyText.includes('░░░░'),
-          stuckSkeletons: document.querySelectorAll('[class*="skeleton"]').length > 5,
-          perpetualSpinners: document.querySelectorAll('.animate-spin').length > 2,
-          emptyCards: document.querySelectorAll('.card').length === 0 && bodyText.includes('История'),
-          corruptedHTML: bodyHTML.includes('undefined') || bodyHTML.includes('null'),
-          missingNavigation: !document.querySelector('button') && bodyText.includes('панели')
+          blockChars: /[█▓▒░]{4,}/.test(bodyText),
+          
+          // UI corruption indicators
+          stuckSkeletons: document.querySelectorAll('[class*="skeleton"]').length > 3,
+          perpetualSpinners: document.querySelectorAll('.animate-spin').length > 1,
+          missingCards: document.querySelectorAll('.card').length === 0 && bodyText.includes('саммари'),
+          
+          // Content corruption
+          corruptedHTML: bodyHTML.includes('undefined') || bodyHTML.includes('null') || bodyHTML.includes('[object Object]'),
+          emptyDivs: document.querySelectorAll('div:empty').length > 10,
+          
+          // Navigation issues
+          missingButtons: document.querySelectorAll('button').length < 2 && bodyText.includes('История'),
+          brokenLayout: !document.querySelector('[class*="container"]') && bodyText.includes('саммари')
         }
         
         const detectedCount = Object.values(indicators).filter(Boolean).length
+        const hasValidContent = bodyText.length > 300 && !indicators.purpleChars && !indicators.blockChars
         
-        if (detectedCount >= 2) {
-          console.warn('🟣 Purple bars detected:', indicators)
+        // Store last valid content for comparison
+        if (hasValidContent) {
+          lastValidContentRef.current = bodyText.substring(0, 100)
+        }
+        
+        // Detection logic: need multiple indicators OR obvious corruption
+        const shouldTrigger = detectedCount >= 2 || 
+                             indicators.purpleChars || 
+                             indicators.blockChars ||
+                             (bodyText.length < 100 && bodyText.includes('История'))
+        
+        if (shouldTrigger) {
+          detectionRef.current++
           
-          if (onPurpleBarDetected) {
+          // Dispatch debug event
+          window.dispatchEvent(new CustomEvent('purpleBarDebug', {
+            detail: `Detection ${detectionRef.current}: ${Object.entries(indicators).filter(([k,v]) => v).map(([k]) => k).join(', ')}`
+          }))
+          
+          console.warn(`🟣 Purple bars detected (${detectionRef.current}):`, {
+            indicators,
+            detectedCount,
+            bodyTextLength: bodyText.length,
+            bodyPreview: bodyText.substring(0, 100),
+            lastValidContent: lastValidContentRef.current
+          })
+          
+          // Trigger recovery after 2 consecutive detections to avoid false positives
+          if (detectionRef.current >= 2 && onPurpleBarDetected) {
+            console.error('🚨 Confirmed purple bars - triggering recovery')
+            window.dispatchEvent(new CustomEvent('purpleBarDebug', {
+              detail: 'RECOVERY TRIGGERED'
+            }))
             onPurpleBarDetected()
+            detectionRef.current = 0 // Reset counter
           }
+        } else {
+          // Reset counter if no issues detected
+          detectionRef.current = 0
         }
         
       } catch (error) {
@@ -48,24 +97,33 @@ export function PurpleBarDetector({
       }
     }
 
-    // Initial check
-    setTimeout(detectPurpleBars, 1000)
+    // Immediate check on mount
+    setTimeout(detectPurpleBars, 500)
     
     // Periodic checks
     const interval = setInterval(detectPurpleBars, checkInterval)
     
-    // Check on visibility change
+    // Check on visibility change (tab switching)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        setTimeout(detectPurpleBars, 500)
+        console.log('Tab became visible - checking for purple bars')
+        setTimeout(detectPurpleBars, 300)
+        setTimeout(detectPurpleBars, 1000) // Double check
       }
     }
     
+    // Check on focus events
+    const handleFocus = () => {
+      setTimeout(detectPurpleBars, 200)
+    }
+    
     document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
     
     return () => {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
     }
   }, [onPurpleBarDetected, checkInterval, enabled])
 

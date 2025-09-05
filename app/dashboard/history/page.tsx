@@ -26,6 +26,7 @@ export default function HistoryPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const [summaries, setSummaries] = useState<Summary[]>([])
+  console.log("Summaries state:", summaries)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')

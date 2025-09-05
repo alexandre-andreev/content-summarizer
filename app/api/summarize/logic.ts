@@ -72,11 +72,28 @@ async function getTranscript(videoId: string): Promise<string> {
     console.log('🔗 Transcript Step 5: Response parsed');
     console.log('Data type:', typeof data, 'Is array:', Array.isArray(data));
     console.log('Array length:', Array.isArray(data) ? data.length : 'N/A');
+    
+    // More detailed logging for debugging
+    if (Array.isArray(data) && data.length > 0) {
+        console.log('First item structure:', {
+            hasTracks: !!data[0].tracks,
+            tracksIsArray: Array.isArray(data[0].tracks),
+            tracksLength: data[0].tracks?.length || 0
+        });
+        
+        if (data[0].tracks && Array.isArray(data[0].tracks) && data[0].tracks.length > 0) {
+            console.log('First track structure:', {
+                hasTranscript: !!data[0].tracks[0].transcript,
+                transcriptIsArray: Array.isArray(data[0].tracks[0].transcript),
+                transcriptLength: data[0].tracks[0].transcript?.length || 0
+            });
+        }
+    }
 
     // Defensive coding: check the response structure revealed by curl.
     if (!Array.isArray(data) || data.length === 0 || !data[0].tracks || !Array.isArray(data[0].tracks) || data[0].tracks.length === 0 || !data[0].tracks[0].transcript) {
-        console.error('❌ Unexpected API response structure:', data);
-        throw new Error('Could not get transcript for this video. The API returned an unexpected format or an empty transcript.');
+        console.error('❌ Unexpected API response structure:', JSON.stringify(data, null, 2).substring(0, 1000));
+        throw new Error('Не удалось получить транскрипт для этого видео. Возможно, видео не имеет доступных субтитров.');
     }
 
     console.log('🔗 Transcript Step 6: Extracting transcript segments...');
@@ -127,6 +144,13 @@ export async function summarizeLogic(videoUrl: string) {
 
   console.log(`🧬 Final transcript length: ${finalTranscript.length} characters`);
 
+  // Check if title generation is disabled via environment variable
+  const disableTitleGeneration = process.env.DISABLE_TITLE_GENERATION === 'true';
+  
+  if (disableTitleGeneration) {
+    console.log('🔄 Title generation disabled, using simple summary mode');
+    return await generateSimpleSummary(finalTranscript);
+  }
   // Use Google Gemini API for summarization
   try {
     console.log('🤖 Step 1: Trying Gemini API...');
@@ -135,17 +159,20 @@ export async function summarizeLogic(videoUrl: string) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!); 
     console.log('🤖 Step 2: GoogleGenerativeAI instance created');
     
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
-    console.log('🤖 Step 3: Model instance created');
+    // Try with a more reliable model first
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    console.log('🤖 Step 3: Model instance created with gemini-1.5-flash');
 
-    const prompt = `You are an expert in summarizing YouTube videos. Please analyze the following transcript and provide:
-1. A short video title (2-4 words in Russian)
-2. A concise and clear summary in Russian highlighting the main points and key takeaways.
+    // Simplified prompt for better reliability
+    const prompt = `Проанализируйте следующий транскрипт YouTube видео и создайте:
+1. Короткое название (2-4 слова)
+2. Краткое изложение основных моментов
 
-Please format your response EXACTLY as follows:
-{"title": "Short Title Here", "summary": "Detailed summary here..."}
+Формат ответа:
+Название: [название]
+Изложение: [текст изложения]
 
-Transcript:`
+Транскрипт:`
 
     console.log('🤖 Step 4: Sending request to Gemini...');
     console.log('📝 Prompt length:', prompt.length);
@@ -164,7 +191,11 @@ Transcript:`
           { text: prompt },
           { text: finalTranscript }
         ]
-      }]
+      }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1000
+      }
     });
     
     console.log('🤖 Step 5: Waiting for Gemini response...');
@@ -175,34 +206,53 @@ Transcript:`
     console.log('🤖 Step 7: Text extracted from response');
     console.log('📄 Raw response length:', responseText?.length || 0);
     
-    // Parse the JSON response to extract title and summary
+    // Parse the response to extract title and summary
     try {
-      let jsonText = responseText;
+      let title = 'Видео YouTube';
+      let summary = responseText;
       
-      // Remove code block markers if present
-      if (jsonText.includes('```json')) {
-        jsonText = jsonText.replace(/```json\s*|\s*```/g, '').trim();
+      // Try to extract title and summary from structured format
+      const titleMatch = responseText.match(/Название:\s*(.+?)\n/i);
+      const summaryMatch = responseText.match(/Изложение:\s*([\s\S]+)/i);
+      
+      if (titleMatch && titleMatch[1]) {
+        title = titleMatch[1].trim();
       }
       
-      const parsed = JSON.parse(jsonText);
-      console.log('✅ Successfully parsed JSON response');
-      
-      if (!parsed.title || !parsed.summary) {
-        throw new Error('Missing title or summary in response');
+      if (summaryMatch && summaryMatch[1]) {
+        summary = summaryMatch[1].trim();
       }
       
-      console.log('📝 Generated title:', parsed.title);
-      console.log('📝 Summary length:', parsed.summary?.length || 0);
+      // Fallback: try JSON parsing if structured format fails
+      if (title === 'Видео YouTube' && (responseText.includes('{') || responseText.includes('```json'))) {
+        try {
+          let jsonText = responseText;
+          
+          // Remove code block markers if present
+          if (jsonText.includes('```json')) {
+            jsonText = jsonText.replace(/```json\s*|\s*```/g, '').trim();
+          }
+          
+          const parsed = JSON.parse(jsonText);
+          if (parsed.title) title = parsed.title;
+          if (parsed.summary) summary = parsed.summary;
+        } catch (jsonError) {
+          console.log('⚠️ JSON parsing failed, using text extraction results');
+        }
+      }
+      
+      console.log('📝 Generated title:', title);
+      console.log('📝 Summary length:', summary?.length || 0);
       
       return {
-        title: parsed.title,
-        summary: parsed.summary
+        title: title,
+        summary: summary
       };
     } catch (parseError) {
-      console.warn('⚠️ Failed to parse JSON response, falling back to plain text');
+      console.warn('⚠️ Failed to parse response, using fallback');
       console.log('Raw response:', responseText.substring(0, 200) + '...');
       
-      // Fallback: treat as plain summary without title
+      // Ultimate fallback: treat entire response as summary
       return {
         title: "Видео YouTube",
         summary: responseText
@@ -230,7 +280,52 @@ Transcript:`
       throw new Error('Превышено время ожидания ответа от AI API. Попробуйте ещё раз.');
     }
     
+    if (errorMessage.includes('overloaded') || errorMessage.includes('503') || errorMessage.includes('Service Unavailable')) {
+      // Fallback: create summary without AI title generation
+      console.log('⚠️ Gemini API overloaded, falling back to simple summary mode');
+      
+      try {
+        // Simple fallback using basic model
+        const fallbackModel = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ 
+          model: 'gemini-pro' 
+        });
+        
+        const simpleSummary = await fallbackModel.generateContent(
+          `Кратко опишите основные моменты этого транскрипта:\n\n${finalTranscript}`
+        );
+        
+        const summaryText = simpleSummary.response.text();
+        return {
+          title: "Видео YouTube",
+          summary: summaryText
+        };
+      } catch (fallbackError) {
+        console.error('❌ Fallback also failed:', fallbackError);
+        throw new Error('Сервис суммаризации временно недоступен. Попробуйте позже.');
+      }
+    }
+    
     // Generic error message for other cases
     throw new Error(`Ошибка при создании резюме: ${errorMessage}. Попробуйте ещё раз одно видео.`);
+  }
+}
+
+// Simple summary function without title generation
+async function generateSimpleSummary(transcript: string) {
+  try {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    
+    const result = await model.generateContent(
+      `Кратко опишите основные моменты и ключевые мысли этого видео:\n\n${transcript}`
+    );
+    
+    return {
+      title: 'Видео YouTube',
+      summary: result.response.text()
+    };
+  } catch (error) {
+    console.error('❌ Simple summary failed:', error);
+    throw new Error('Ошибка при создании краткого изложения. Попробуйте ещё раз.');
   }
 }

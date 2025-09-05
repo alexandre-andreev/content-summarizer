@@ -1,5 +1,7 @@
 'use client'
 
+'use client'
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
@@ -164,7 +166,8 @@ export default function DashboardPage() {
     // Handle corruption events from BrowserTabManager
     const handlePageCorrupted = (event: CustomEvent) => {
       console.error('🚨 Dashboard page corruption detected:', event.detail)
-      handleAppRecovery()
+      // Simple recovery - just reload dashboard data
+      loadDashboardData(true)
     }
 
     const handlePageSlow = (event: CustomEvent) => {
@@ -417,27 +420,6 @@ export default function DashboardPage() {
     }
   }
 
-  const handleAppRecovery = async () => {
-    console.log('Performing app recovery...')
-    
-    // Reset all states to clean state
-    setLoading(false)
-    setRefreshing(false)
-    setIsProcessing(false)
-    setIsSaving(false)
-    setCanSave(false)
-    setError(null)
-    setSummaryError(null)
-    setLastGeneratedSummary(null)
-    
-    // Force reload dashboard data
-    if (user) {
-      await loadDashboardData(true)
-    }
-    
-    console.log('App recovery completed')
-  }
-
   if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center">
@@ -452,9 +434,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <BrowserTabManager />
-      <PerformanceMonitor onPerformanceIssue={(issue) => console.warn('Performance issue:', issue)} />
-      <AppRecovery onRecover={handleAppRecovery} />
-      <EmergencyRecovery />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">

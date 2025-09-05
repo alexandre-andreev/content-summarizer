@@ -76,21 +76,7 @@ export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {
             </div>
           </div>
 
-          {isLoading && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center text-muted-foreground">
-                  <Clock className="w-4 h-4 mr-2" />
-                  {loadingMessage}
-                </span>
-                <span className="text-muted-foreground">{Math.round(progress)}%</span>
-              </div>
-              <Progress value={progress} className="h-2" />
-              <p className="text-xs text-muted-foreground text-center">
-                Обычно это занимает 30-60 секунд. Для длинных видео может потребоваться до 2 минут.
-              </p>
-            </div>
-          )}
+          
 
           <Button
             type="submit"
@@ -112,9 +98,21 @@ export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-xs text-muted-foreground">
-            Поддерживаются все видео YouTube: обучающие, лекции, подкасты и другие
-          </p>
+          {isLoading && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center text-muted-foreground">
+                  <Clock className="w-4 h-4 mr-2" />
+                  {loadingMessage}
+                </span>
+                <span className="text-muted-foreground">{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+              <p className="text-xs text-muted-foreground text-center">
+                Обычно это занимает 30-60 секунд. Для длинных видео может потребоваться до 2 минут.
+              </p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

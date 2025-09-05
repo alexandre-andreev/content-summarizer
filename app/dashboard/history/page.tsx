@@ -30,6 +30,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')  // Separate state for input field
   const [sortBy, setSortBy] = useState<'created_at' | 'video_title'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
@@ -97,6 +98,20 @@ export default function HistoryPage() {
   const handleSearch = (query: string) => {
     setSearchQuery(query)
     setCurrentPage(1)
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch(searchInput)
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchInput(e.target.value)
+    // If input is cleared, immediately clear the search
+    if (e.target.value === '') {
+      handleSearch('')
+    }
   }
 
   const handleToggleFavorite = async (summaryId: string) => {
@@ -176,11 +191,15 @@ export default function HistoryPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
-                    placeholder="Поиск по саммари..."
-                    value={searchQuery}
-                    onChange={(e) => handleSearch(e.target.value)}
+                    placeholder="Введите текст для поиска и нажмите Enter"
+                    value={searchInput}
+                    onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
                     className="pl-10"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 Введите поисковый запрос и нажмите Enter для поиска
+                  </p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -225,7 +244,7 @@ export default function HistoryPage() {
           <Card>
             <CardContent className="p-12 text-center">
               <p className="text-muted-foreground">
-                {searchQuery ? 'Ничего не найдено по вашему запросу.' : 'Пока нет саммари. Создайте первое!'}
+                {searchQuery ? 'Ничего не найдено по запросу: "' + searchQuery + '"' : 'Пока нет саммари. Создайте первое!'}
               </p>
               <Button
                 className="mt-4"

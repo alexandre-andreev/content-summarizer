@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { supabase } from '@/lib/supabase/client'
 import { authService, type AuthState } from '@/lib/auth'
 import type { User } from '@supabase/supabase-js'
+import { recoveryManager } from '@/lib/utils/recovery-manager'
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>
@@ -93,7 +94,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log('🔄 Handling long suspension recovery...')
       
-      // First, try force token refresh through Supabase client
+      // Check if recovery is already in progress globally
+      if (recoveryManager.isRecoveryInProgress()) {
+        console.log('🔄 Global recovery already in progress, skipping auth recovery')
+        return false
+      }
+      
+      // First, try force reconnect through Supabase client
+      if (typeof supabase._forceReconnect === 'function') {
+        const reconnected = await supabase._forceReconnect()
+        if (reconnected) {
+          console.log('✅ Complete reconnection through Supabase client')
+          // Refresh session to update UI
+          await refreshSession()
+          return true
+        }
+      }
+      
+      // Fallback to force token refresh
       if (typeof supabase._forceTokenRefresh === 'function') {
         const tokenRefreshed = await supabase._forceTokenRefresh()
         if (tokenRefreshed) {
@@ -104,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Fallback to direct force refresh
+      // Final fallback to direct force refresh
       const success = await forceTokenRefresh()
       if (success) {
         console.log('✅ Token refreshed through auth provider')
@@ -152,6 +170,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', event)
+      
+      // Detailed token debugging
+      if (session?.access_token) {
+        const tokenExpiry = new Date(session.expires_at! * 1000)
+        const now = new Date()
+        const timeUntilExpiry = tokenExpiry.getTime() - now.getTime()
+        const minutesUntilExpiry = Math.floor(timeUntilExpiry / (1000 * 60))
+        
+        console.log('🔑 Token Debug:', {
+          event,
+          hasToken: !!session.access_token,
+          tokenLength: session.access_token.length,
+          expiresAt: tokenExpiry.toISOString(),
+          timeUntilExpiry: `${minutesUntilExpiry} minutes`,
+          isExpired: timeUntilExpiry < 0,
+          hasRefreshToken: !!session.refresh_token
+        })
+      }
       
       try {
         setUser(session?.user ?? null)
@@ -227,13 +263,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshSession()
     }
 
+    // Handle Supabase recovery failure
+    const handleSupabaseRecoveryFailed = async () => {
+      console.log('Supabase recovery failed - attempting force reconnect')
+      const success = await handleLongSuspensionRecovery()
+      if (!success) {
+        console.error('All recovery attempts failed')
+        setAuthError('Connection lost. Please refresh the page.')
+      }
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('supabaseRecovered', handleSupabaseRecovered)
+    window.addEventListener('supabaseRecoveryFailed', handleSupabaseRecoveryFailed)
 
     return () => {
       subscription.unsubscribe()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('supabaseRecovered', handleSupabaseRecovered)
+      window.removeEventListener('supabaseRecoveryFailed', handleSupabaseRecoveryFailed)
     }
   }, [])
 

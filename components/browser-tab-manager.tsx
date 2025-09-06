@@ -11,6 +11,7 @@ import {
   storeScrollPosition,
   monitorPageHealth
 } from '@/lib/utils/page-recovery'
+import { recoveryManager } from '@/lib/utils/recovery-manager'
 
 export function BrowserTabManager() {
   const recoveryTimeout = useRef<NodeJS.Timeout | null>(null)
@@ -68,104 +69,47 @@ export function BrowserTabManager() {
             pageFrozen.current = true
           }
           
-          // Delay recovery slightly to allow browser to stabilize
-          recoveryTimeout.current = setTimeout(async () => {
-            // Prevent multiple concurrent recovery attempts
-            if (isRecovering.current) {
-              console.log('Recovery already in progress, skipping')
+          // Use global recovery manager to prevent conflicts
+        recoveryTimeout.current = setTimeout(async () => {
+          try {
+            console.log('🔄 Simple recovery: refreshing session and dispatching event')
+            
+            // Force session refresh to ensure token is valid
+            const { data: { session }, error } = await supabase.auth.refreshSession()
+            
+            if (error) {
+              console.error('❌ Session refresh failed:', error)
+              window.dispatchEvent(new CustomEvent('recoveryFailed'))
               return
             }
             
-            isRecovering.current = true
-            
-            try {
-              // Wait for browser to stabilize
-              await waitForBrowserStabilization()
+            if (session) {
+              console.log('✅ Session refreshed successfully')
               
-              // For frozen pages, we need to force a more comprehensive recovery
-              if (pageFrozen.current) {
-                console.log('Attempting comprehensive recovery for frozen page...')
-                
-                const recoverySuccess = await recoverFromFrozenPage(async () => {
-                  // First, try to force token refresh through Supabase client
-                  if (typeof supabase._forceTokenRefresh === 'function') {
-                    console.log('Forcing token refresh through Supabase client...')
-                    const tokenRefreshed = await supabase._forceTokenRefresh()
-                    if (tokenRefreshed) {
-                      console.log('✅ Token refresh completed through Supabase client')
-                    } else {
-                      console.error('Token refresh failed through Supabase client')
-                    }
-                    return tokenRefreshed
-                  } else {
-                    // Fallback to standard session refresh
-                    console.log('Forcing token refresh through standard method...')
-                    const { error: refreshError } = await supabase.auth.refreshSession()
-                    if (refreshError) {
-                      console.error('Token refresh failed:', refreshError)
-                      return false
-                    } else {
-                      console.log('✅ Token refresh completed through standard method')
-                      return true
-                    }
-                  }
-                })
-                
-                // Then try to recover Supabase connection
-                if (typeof supabase._recoverConnection === 'function') {
-                  console.log('Attempting Supabase connection recovery...')
-                  const connectionRecoverySuccess = await supabase._recoverConnection()
-                  if (connectionRecoverySuccess) {
-                    console.log('✅ Supabase connection recovered successfully')
-                  } else {
-                    console.error('❌ Failed to recover Supabase connection')
-                  }
-                }
-                
-                // Dispatch custom event for components to refresh their data
-                window.dispatchEvent(new CustomEvent('comprehensiveRecovery', {
-                  detail: { hiddenDuration, frozen: true }
-                }))
-                
-                pageFrozen.current = false
-              } else {
-                // Standard recovery for shorter suspensions
-                // Recover Supabase connection
-                if (typeof supabase._recoverConnection === 'function') {
-                  console.log('Attempting Supabase connection recovery...')
-                  const recoverySuccess = await supabase._recoverConnection()
-                  if (recoverySuccess) {
-                    console.log('✅ Supabase connection recovered successfully')
-                    // Dispatch custom event for components to refresh their data
-                    window.dispatchEvent(new CustomEvent('supabaseRecovered'))
-                  } else {
-                    console.error('❌ Failed to recover Supabase connection')
-                    window.dispatchEvent(new CustomEvent('supabaseRecoveryFailed'))
-                  }
-                }
-              }
+              // Check if token was actually refreshed
+              const tokenExpiry = new Date(session.expires_at! * 1000)
+              const now = new Date()
+              const timeUntilExpiry = tokenExpiry.getTime() - now.getTime()
+              const minutesUntilExpiry = Math.floor(timeUntilExpiry / (1000 * 60))
               
-              // Check if page content is corrupted
-              const bodyText = document.body.textContent || ''
-              const hasValidContent = bodyText.length > 100 && !bodyText.includes('████')
-              
-              if (!hasValidContent) {
-                console.error('🚨 Page content corrupted after suspension!')
-                
-                // Trigger custom recovery event
-                window.dispatchEvent(new CustomEvent('pageCorrupted', {
-                  detail: { hiddenDuration, bodyTextLength: bodyText.length }
-                }))
-              } else {
-                // Restore scroll position
-                restoreScrollPosition()
-              }
-            } catch (error) {
-              console.error('Error during tab restoration:', error)
-            } finally {
-              isRecovering.current = false
+              console.log('🔑 Token after refresh:', {
+                expiresAt: tokenExpiry.toISOString(),
+                timeUntilExpiry: `${minutesUntilExpiry} minutes`,
+                isExpired: timeUntilExpiry < 0
+              })
             }
-          }, 500)
+            
+            // Dispatch simple recovery event
+            window.dispatchEvent(new CustomEvent('simpleRecovery', {
+              detail: { hiddenDuration, frozen: pageFrozen.current }
+            }))
+            
+            console.log('✅ Simple recovery completed')
+          } catch (error) {
+            console.error('❌ Simple recovery failed:', error)
+            window.dispatchEvent(new CustomEvent('recoveryFailed'))
+          }
+        }, 500)
         }
       }
     }

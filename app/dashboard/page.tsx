@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { UrlForm, type UrlFormRef } from '@/components/url-form'
 import { SummaryDisplay } from '@/components/summary-display'
 import { BrowserTabManager } from '@/components/browser-tab-manager'
+import { recoveryManager } from '@/lib/utils/recovery-manager'
 import { 
   BarChart3, 
   Calendar,
@@ -49,8 +50,11 @@ export default function DashboardPage() {
   } | null>(null)
   const [isTabVisible, setIsTabVisible] = useState(true)
   const [recoveryAttempted, setRecoveryAttempted] = useState(false)
+  const [isNavigating, setIsNavigating] = useState(false)
   const healthCheckInterval = useRef<NodeJS.Timeout | null>(null)
   const lastHealthCheck = useRef<number>(0)
+  const lastLoadTime = useRef<number>(0)
+  const recoveryTimeout = useRef<NodeJS.Timeout | null>(null)
 
   // Background save function
   const saveSummaryToDatabase = async (summaryData: {
@@ -110,6 +114,30 @@ export default function DashboardPage() {
     }
   }, [user])
 
+  // Track navigation state
+  useEffect(() => {
+    const handleRouteChangeStart = () => {
+      console.log('🔄 Dashboard: Navigation started')
+      setIsNavigating(true)
+    }
+
+    const handleRouteChangeComplete = () => {
+      console.log('🔄 Dashboard: Navigation completed')
+      setTimeout(() => {
+        setIsNavigating(false)
+      }, 1000) // Small delay to prevent conflicts
+    }
+
+    // Listen for route changes
+    window.addEventListener('beforeunload', handleRouteChangeStart)
+    window.addEventListener('load', handleRouteChangeComplete)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleRouteChangeStart)
+      window.removeEventListener('load', handleRouteChangeComplete)
+    }
+  }, [])
+
   // Restore summary from localStorage if available (for Hot Reload recovery)
   useEffect(() => {
     const lastSummary = localStorage.getItem('lastSummary')
@@ -134,20 +162,24 @@ export default function DashboardPage() {
 
   // Handle tab visibility changes to prevent browser suspension issues
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleTabVisibilityChange = () => {
       const isVisible = !document.hidden
       setIsTabVisible(isVisible)
       
       if (isVisible) {
-        console.log('Tab became visible - checking app state')
+        console.log('🔄 Dashboard: Tab became visible - checking app state')
         
-        // If tab was hidden and now visible, refresh data if needed
-        if (user && !loading && !isProcessing) {
-          console.log('Refreshing dashboard data after tab became visible')
-          loadDashboardData(true)
-        }
+        // Add small delay to prevent conflicts with other pages
+        setTimeout(() => {
+          // If tab was hidden and now visible, refresh data if needed
+          if (user && !loading && !isProcessing && !recoveryAttempted) {
+            console.log('🔄 Dashboard: Refreshing data after tab became visible')
+            setRecoveryAttempted(true)
+            loadDashboardData(true)
+          }
+        }, 200) // Small delay to prevent conflicts
       } else {
-        console.log('Tab became hidden')
+        console.log('🔄 Dashboard: Tab became hidden')
         setRecoveryAttempted(false) // Reset recovery flag when tab is hidden
       }
     }
@@ -194,73 +226,104 @@ export default function DashboardPage() {
       }
     }
 
-    // Handle Supabase recovery events
-    const handleSupabaseRecovered = () => {
-      console.log('Supabase connection recovered - refreshing dashboard')
+    // Handle simple recovery events
+    const handleSimpleRecovery = () => {
+      console.log('🔄 Dashboard: Simple recovery - refreshing data')
       if (user && !loading && !isProcessing) {
+        console.log('🔄 Dashboard: Loading data after simple recovery')
         loadDashboardData(true)
       }
     }
 
+
+    // Handle recovery failure
+    const handleRecoveryFailed = () => {
+      console.log('❌ Dashboard: Recovery failed - showing error')
+      setError('Connection lost. Please refresh the page.')
+    }
+
     // Handle Supabase recovery failure
     const handleSupabaseRecoveryFailed = async () => {
-      console.error('❌ Supabase recovery failed - forcing session refresh')
-      if (!recoveryAttempted) {
-        setRecoveryAttempted(true)
-        try {
-          await refreshSession()
-          if (user && !loading && !isProcessing) {
-            await loadDashboardData(true)
-          }
-        } catch (error) {
-          console.error('Error during recovery:', error)
-        }
-      }
-    }
-
-    // Handle comprehensive recovery for frozen pages
-    const handleComprehensiveRecovery = async (event: CustomEvent) => {
-      console.log('Comprehensive recovery initiated:', event.detail)
-      
-      // Handle long suspension recovery
+      console.log('❌ Dashboard: Supabase recovery failed - attempting comprehensive recovery')
       try {
         const recoverySuccess = await handleLongSuspensionRecovery()
-        console.log('Long suspension recovery result:', recoverySuccess)
-        
-        // Refresh dashboard data
-        if (user && !loading && !isProcessing) {
-          await loadDashboardData(true)
+        if (recoverySuccess) {
+          console.log('✅ Dashboard: Recovery successful')
+          setTimeout(() => {
+            if (user && !loading && !isProcessing) {
+              loadDashboardData(true)
+            }
+          }, 1000) // Longer delay for comprehensive recovery
+        } else {
+          console.error('❌ Dashboard: Recovery failed')
+          setError('Connection lost. Please refresh the page.')
         }
       } catch (error) {
-        console.error('Error during comprehensive recovery:', error)
+        console.error('Error during dashboard recovery:', error)
+        setError('Connection lost. Please refresh the page.')
       }
     }
 
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    // Handle comprehensive recovery for frozen pages with debouncing
+    const handleComprehensiveRecovery = async (event: CustomEvent) => {
+      console.log('🔄 Dashboard: Comprehensive recovery initiated:', event.detail)
+      
+      // Clear any existing timeout
+      if (recoveryTimeout.current) {
+        clearTimeout(recoveryTimeout.current)
+      }
+      
+      // Add delay to prevent conflicts with other pages
+      recoveryTimeout.current = setTimeout(async () => {
+        try {
+          // Check if recovery is already in progress globally
+          if (recoveryManager.isRecoveryInProgress()) {
+            console.log('🔄 Dashboard: Global recovery in progress, skipping local recovery')
+            return
+          }
+          
+          const recoverySuccess = await handleLongSuspensionRecovery()
+          console.log('🔄 Dashboard: Long suspension recovery result:', recoverySuccess)
+          
+          // Refresh dashboard data with additional delay
+          if (user && !loading && !isProcessing && !recoveryAttempted && !isNavigating) {
+            console.log('🔄 Dashboard: Refreshing data after comprehensive recovery')
+            setRecoveryAttempted(true)
+            await loadDashboardData(true)
+          } else if (isNavigating) {
+            console.log('🔄 Dashboard: Navigation in progress, skipping comprehensive recovery')
+          }
+        } catch (error) {
+          console.error('Error during comprehensive recovery:', error)
+        }
+      }, 2000) // Longer delay for comprehensive recovery
+    }
+
+    document.addEventListener('visibilitychange', handleTabVisibilityChange)
     window.addEventListener('focus', handleFocus)
     window.addEventListener('blur', handleBlur)
-    window.addEventListener('pageCorrupted', handlePageCorrupted as EventListener)
-    window.addEventListener('pageSlow', handlePageSlow as EventListener)
-    window.addEventListener('supabaseRecovered', handleSupabaseRecovered)
-    window.addEventListener('supabaseRecoveryFailed', handleSupabaseRecoveryFailed)
-    window.addEventListener('comprehensiveRecovery', handleComprehensiveRecovery as EventListener)
+    window.addEventListener('simpleRecovery', handleSimpleRecovery)
+    window.addEventListener('recoveryFailed', handleRecoveryFailed)
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      document.removeEventListener('visibilitychange', handleTabVisibilityChange)
       window.removeEventListener('focus', handleFocus)
       window.removeEventListener('blur', handleBlur)
-      window.removeEventListener('pageCorrupted', handlePageCorrupted as EventListener)
-      window.removeEventListener('pageSlow', handlePageSlow as EventListener)
-      window.removeEventListener('supabaseRecovered', handleSupabaseRecovered)
-      window.removeEventListener('supabaseRecoveryFailed', handleSupabaseRecoveryFailed)
-      window.removeEventListener('comprehensiveRecovery', handleComprehensiveRecovery as EventListener)
+      window.removeEventListener('simpleRecovery', handleSimpleRecovery)
+      window.removeEventListener('recoveryFailed', handleRecoveryFailed)
+      
+      // Clear recovery timeout
+      if (recoveryTimeout.current) {
+        clearTimeout(recoveryTimeout.current)
+      }
       
       // Clear intervals
       if (healthCheckInterval.current) {
         clearInterval(healthCheckInterval.current)
       }
     }
-  }, [user, loading, isProcessing, refreshSession, recoveryAttempted, forceTokenRefresh, handleLongSuspensionRecovery])
+  }, [user, loading, isProcessing, refreshSession, recoveryAttempted, forceTokenRefresh, handleLongSuspensionRecovery, isNavigating])
 
   // Add periodic health check for dashboard with improved logic
   useEffect(() => {
@@ -301,6 +364,14 @@ export default function DashboardPage() {
   const loadDashboardData = async (isRefresh = false) => {
     if (!user) return
 
+    // Prevent duplicate loading within 2 seconds
+    const now = Date.now()
+    if (now - lastLoadTime.current < 2000) {
+      console.log('🔄 Dashboard: Skipping duplicate load request (too recent)')
+      return
+    }
+    lastLoadTime.current = now
+
     if (isRefresh) {
       setRefreshing(true)
     } else {
@@ -309,7 +380,7 @@ export default function DashboardPage() {
     setError(null)
 
     try {
-      console.log('Loading dashboard data via API for user:', user.id)
+      console.log('🔄 Dashboard: Loading dashboard data via API for user:', user.id)
       
       // Get the current session token
       const { data: { session } } = await supabase.auth.getSession()

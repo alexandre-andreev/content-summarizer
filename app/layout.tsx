@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/components/auth/auth-provider'
 import { Header } from '@/components/header'
 import { Toaster } from '@/components/ui/sonner'
+import { ConnectionMonitor } from '@/components/connection-monitor'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
         <AuthProvider>
+          <ConnectionMonitor />
           <Header />
           {children}
           <Toaster />

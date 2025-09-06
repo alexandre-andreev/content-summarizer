@@ -25,6 +25,7 @@ import { useAuth } from '@/components/auth/auth-provider'
 import { databaseService } from '@/lib/database'
 import type { Summary } from '@/lib/supabase/client'
 import ReactMarkdown from 'react-markdown'
+import { recoveryManager } from '@/lib/utils/recovery-manager'
 
 export default function HistoryPage() {
   const router = useRouter()
@@ -40,9 +41,13 @@ export default function HistoryPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [lastCacheTime, setLastCacheTime] = useState<number>(0)
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
+  const [recoveryAttempted, setRecoveryAttempted] = useState(false)
+  const [isNavigating, setIsNavigating] = useState(false)
   const itemsPerPage = 4
   const healthCheckInterval = useRef<NodeJS.Timeout | null>(null)
   const lastHealthCheck = useRef<number>(0)
+  const lastLoadTime = useRef<number>(0)
+  const recoveryTimeout = useRef<NodeJS.Timeout | null>(null)
   
   // Simple caching to avoid excessive database calls
   const CACHE_DURATION = 30000 // 30 seconds
@@ -162,18 +167,28 @@ export default function HistoryPage() {
   }
 
   const loadSummaries = async (forceRefresh = false) => {
-    if (!user) return
-
-    // Check cache first unless force refresh
-    if (!forceRefresh && shouldUseCache() && summaries.length > 0) {
-      console.log('Using cached data, skipping database call')
+    if (!user) {
+      console.log('🔄 History page: No user, skipping loadSummaries')
       return
     }
 
+    // Prevent duplicate loading within 2 seconds
+    const now = Date.now()
+    if (now - lastLoadTime.current < 2000) {
+      console.log('🔄 History page: Skipping duplicate load request (too recent)')
+      return
+    }
+    lastLoadTime.current = now
+
+    // Check cache first unless force refresh
+    if (!forceRefresh && shouldUseCache() && summaries.length > 0) {
+      console.log('🔄 History page: Using cached data, skipping database call')
+      return
+    }
+
+    console.log(`🔄 History page: Starting loadSummaries for user: ${user.id} (force: ${forceRefresh})`)
     setLoading(true)
     setError(null)
-
-    console.log(`Attempting to load summaries for user: ${user.id} (force: ${forceRefresh})`)
 
     try {
       const result = await databaseService.getUserSummaries(
@@ -188,17 +203,20 @@ export default function HistoryPage() {
       )
 
       if (result.error) {
+        console.error('❌ History page: Error loading summaries:', result.error.message)
         setError(result.error.message)
       } else {
+        console.log(`✅ History page: Loaded ${result.summaries?.length || 0} summaries successfully`)
         setSummaries(result.summaries || [])
         setTotalCount(result.count || 0)
         setLastCacheTime(Date.now())
       }
     } catch (err) {
-      console.error("Error loading summaries:", err)
+      console.error("❌ History page: Exception loading summaries:", err)
       setError('Failed to load summaries')
     } finally {
       setLoading(false)
+      console.log('🔄 History page: loadSummaries completed')
     }
   }
   
@@ -207,94 +225,180 @@ export default function HistoryPage() {
   useEffect(() => {
     if (user) {
       const needsRefresh = searchQuery !== '' || sortBy !== 'created_at' || sortOrder !== 'desc' || currentPage !== 1
+      console.log('🔄 History page: Loading summaries on mount/change, needsRefresh:', needsRefresh)
       loadSummaries(needsRefresh)
     }
   }, [user, searchQuery, sortBy, sortOrder, currentPage])
 
+  // Add effect to handle page focus/blur for better recovery
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('🔄 History page: Window focused - checking if data needs refresh')
+      if (user && !loading && summaries.length === 0) {
+        console.log('🔄 History page: No data found, reloading summaries')
+        loadSummaries(true)
+      }
+    }
+
+    const handleBlur = () => {
+      console.log('🔄 History page: Window blurred')
+    }
+
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('blur', handleBlur)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [user, loading, summaries.length])
+
   // Enhanced tab visibility handling with Supabase recovery
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (!document.hidden && user && !loading) {
-        console.log('Tab became visible - refreshing data')
+      if (!document.hidden && user && !loading && !recoveryAttempted) {
+        console.log('🔄 History page: Tab became visible - refreshing data')
+        setRecoveryAttempted(true)
+        
+        // Add a small delay to ensure browser is stable
+        await new Promise(resolve => setTimeout(resolve, 100))
         
         // Try to refresh session first
         try {
+          console.log('🔄 History page: Refreshing session...')
           await refreshSession()
+          console.log('✅ History page: Session refreshed successfully')
         } catch (error) {
-          console.error('Session refresh failed:', error)
+          console.error('❌ History page: Session refresh failed:', error)
           // Try force token refresh
           try {
+            console.log('🔄 History page: Trying force token refresh...')
             await forceTokenRefresh()
+            console.log('✅ History page: Force token refresh successful')
           } catch (forceError) {
-            console.error('Force token refresh failed:', forceError)
+            console.error('❌ History page: Force token refresh failed:', forceError)
           }
         }
         
-        loadSummaries(true)
+        // Force reload summaries with a small delay
+        setTimeout(() => {
+          console.log('🔄 History page: Loading summaries after visibility change')
+          loadSummaries(true)
+        }, 200)
+      } else if (document.hidden) {
+        console.log('🔄 History page: Tab became hidden')
+        setRecoveryAttempted(false) // Reset recovery flag when tab is hidden
       }
     }
 
-    // Handle Supabase recovery events
-    const handleSupabaseRecovered = () => {
-      console.log('Supabase connection recovered - refreshing history')
+    // Handle simple recovery events
+    const handleSimpleRecovery = () => {
+      console.log('🔄 History page: Simple recovery - refreshing data')
       if (user && !loading) {
+        console.log('🔄 History page: Loading summaries after simple recovery')
         loadSummaries(true)
       }
     }
 
-    // Handle comprehensive recovery for frozen pages
-    const handleComprehensiveRecovery = async () => {
-      console.log('Comprehensive recovery initiated for history page')
-      
-      // Handle long suspension recovery
+    // Handle recovery failure
+    const handleRecoveryFailed = () => {
+      console.log('❌ History page: Recovery failed - showing error')
+      setError('Connection lost. Please refresh the page.')
+    }
+
+    // Handle Supabase recovery failure
+    const handleSupabaseRecoveryFailed = async () => {
+      console.log('🔄 History page: Supabase recovery failed - attempting comprehensive recovery')
       try {
         const recoverySuccess = await handleLongSuspensionRecovery()
-        console.log('Long suspension recovery result:', recoverySuccess)
-        
-        // Refresh history data
-        if (user && !loading) {
-          await loadSummaries(true)
+        if (recoverySuccess) {
+          console.log('✅ History page: Recovery successful')
+          setTimeout(() => {
+            if (!recoveryAttempted) {
+              setRecoveryAttempted(true)
+              loadSummaries(true)
+            }
+          }, 500)
+        } else {
+          console.error('❌ History page: Recovery failed')
+          setError('Connection lost. Please refresh the page.')
         }
       } catch (error) {
-        console.error('Error during comprehensive recovery:', error)
+        console.error('❌ History page: Error during recovery:', error)
+        setError('Connection lost. Please refresh the page.')
+      }
+    }
+
+    // Handle comprehensive recovery for frozen pages with debouncing
+    const handleComprehensiveRecovery = async () => {
+      console.log('🔄 History page: Comprehensive recovery initiated')
+      
+      // Clear any existing timeout
+      if (recoveryTimeout.current) {
+        clearTimeout(recoveryTimeout.current)
+      }
+      
+      // Add delay to prevent conflicts with other pages
+      recoveryTimeout.current = setTimeout(async () => {
+        try {
+          // Check if recovery is already in progress globally
+          if (recoveryManager.isRecoveryInProgress()) {
+            console.log('🔄 History page: Global recovery in progress, skipping local recovery')
+            return
+          }
+          
+          const recoverySuccess = await handleLongSuspensionRecovery()
+          console.log('🔄 History page: Long suspension recovery result:', recoverySuccess)
+          
+          // Refresh history data with delay
+          if (user && !loading && !recoveryAttempted && !isNavigating) {
+            console.log('🔄 History page: Loading summaries after comprehensive recovery')
+            setRecoveryAttempted(true)
+            await loadSummaries(true)
+          } else if (isNavigating) {
+            console.log('🔄 History page: Navigation in progress, skipping comprehensive recovery')
+          }
+        } catch (error) {
+          console.error('❌ History page: Error during comprehensive recovery:', error)
+        }
+      }, 2000) // Increased delay for comprehensive recovery
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('simpleRecovery', handleSimpleRecovery)
+    window.addEventListener('recoveryFailed', handleRecoveryFailed)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('simpleRecovery', handleSimpleRecovery)
+      window.removeEventListener('recoveryFailed', handleRecoveryFailed)
+      
+      // Clear recovery timeout
+      if (recoveryTimeout.current) {
+        clearTimeout(recoveryTimeout.current)
+      }
+    }
+  }, [user, loading, refreshSession, forceTokenRefresh, handleLongSuspensionRecovery, recoveryAttempted, isNavigating])
+
+  // Replace polling with visibilitychange-based refresh
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user && !loading) {
+        console.log('🔄 History: Tab became visible - checking if data needs refresh')
+        
+        // Check if we need to refresh data (no polling, just on visibility change)
+        const timeSinceLastLoad = Date.now() - lastLoadTime.current
+        if (timeSinceLastLoad > 60000) { // 1 minute
+          console.log('🔄 History: Data is stale, refreshing...')
+          loadSummaries(true)
+        }
       }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('supabaseRecovered', handleSupabaseRecovered)
-    window.addEventListener('comprehensiveRecovery', handleComprehensiveRecovery)
-
+    
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('supabaseRecovered', handleSupabaseRecovered)
-      window.removeEventListener('comprehensiveRecovery', handleComprehensiveRecovery)
-    }
-  }, [user, loading, refreshSession, forceTokenRefresh, handleLongSuspensionRecovery])
-
-  // Add periodic health check for history page with improved logic
-  useEffect(() => {
-    // Check history page health every 30 seconds
-    healthCheckInterval.current = setInterval(() => {
-      const now = Date.now()
-      
-      // Skip health check if we just did one (within 25 seconds)
-      if (now - lastHealthCheck.current < 25000) {
-        return
-      }
-      
-      lastHealthCheck.current = now
-      
-      if (user && !document.hidden && !loading) {
-        // Simple health check - verify we can still get session
-        // This will help detect if the page has become unresponsive
-        console.log('Performing history page health check...')
-      }
-    }, 30000) // 30 seconds
-
-    return () => {
-      if (healthCheckInterval.current) {
-        clearInterval(healthCheckInterval.current)
-      }
     }
   }, [user, loading])
 

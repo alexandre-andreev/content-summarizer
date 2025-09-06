@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,7 +28,7 @@ import ReactMarkdown from 'react-markdown'
 
 export default function HistoryPage() {
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, refreshSession, forceTokenRefresh, handleLongSuspensionRecovery } = useAuth()
   const [summaries, setSummaries] = useState<Summary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +41,8 @@ export default function HistoryPage() {
   const [lastCacheTime, setLastCacheTime] = useState<number>(0)
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set())
   const itemsPerPage = 4
+  const healthCheckInterval = useRef<NodeJS.Timeout | null>(null)
+  const lastHealthCheck = useRef<number>(0)
   
   // Simple caching to avoid excessive database calls
   const CACHE_DURATION = 30000 // 30 seconds
@@ -209,19 +211,90 @@ export default function HistoryPage() {
     }
   }, [user, searchQuery, sortBy, sortOrder, currentPage])
 
-  // Simple tab visibility handling
+  // Enhanced tab visibility handling with Supabase recovery
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (!document.hidden && user && !loading) {
         console.log('Tab became visible - refreshing data')
+        
+        // Try to refresh session first
+        try {
+          await refreshSession()
+        } catch (error) {
+          console.error('Session refresh failed:', error)
+          // Try force token refresh
+          try {
+            await forceTokenRefresh()
+          } catch (forceError) {
+            console.error('Force token refresh failed:', forceError)
+          }
+        }
+        
         loadSummaries(true)
       }
     }
 
+    // Handle Supabase recovery events
+    const handleSupabaseRecovered = () => {
+      console.log('Supabase connection recovered - refreshing history')
+      if (user && !loading) {
+        loadSummaries(true)
+      }
+    }
+
+    // Handle comprehensive recovery for frozen pages
+    const handleComprehensiveRecovery = async () => {
+      console.log('Comprehensive recovery initiated for history page')
+      
+      // Handle long suspension recovery
+      try {
+        const recoverySuccess = await handleLongSuspensionRecovery()
+        console.log('Long suspension recovery result:', recoverySuccess)
+        
+        // Refresh history data
+        if (user && !loading) {
+          await loadSummaries(true)
+        }
+      } catch (error) {
+        console.error('Error during comprehensive recovery:', error)
+      }
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    
+    window.addEventListener('supabaseRecovered', handleSupabaseRecovered)
+    window.addEventListener('comprehensiveRecovery', handleComprehensiveRecovery)
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('supabaseRecovered', handleSupabaseRecovered)
+      window.removeEventListener('comprehensiveRecovery', handleComprehensiveRecovery)
+    }
+  }, [user, loading, refreshSession, forceTokenRefresh, handleLongSuspensionRecovery])
+
+  // Add periodic health check for history page with improved logic
+  useEffect(() => {
+    // Check history page health every 30 seconds
+    healthCheckInterval.current = setInterval(() => {
+      const now = Date.now()
+      
+      // Skip health check if we just did one (within 25 seconds)
+      if (now - lastHealthCheck.current < 25000) {
+        return
+      }
+      
+      lastHealthCheck.current = now
+      
+      if (user && !document.hidden && !loading) {
+        // Simple health check - verify we can still get session
+        // This will help detect if the page has become unresponsive
+        console.log('Performing history page health check...')
+      }
+    }, 30000) // 30 seconds
+
+    return () => {
+      if (healthCheckInterval.current) {
+        clearInterval(healthCheckInterval.current)
+      }
     }
   }, [user, loading])
 

@@ -26,7 +26,7 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
-  const { user, loading: authLoading, signOut } = useAuth()
+  const { user, loading: authLoading, signOut, refreshSession, forceTokenRefresh, handleLongSuspensionRecovery } = useAuth()
   const router = useRouter()
   const urlFormRef = useRef<UrlFormRef>(null)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
@@ -48,6 +48,9 @@ export default function DashboardPage() {
     processingTime: number;
   } | null>(null)
   const [isTabVisible, setIsTabVisible] = useState(true)
+  const [recoveryAttempted, setRecoveryAttempted] = useState(false)
+  const healthCheckInterval = useRef<NodeJS.Timeout | null>(null)
+  const lastHealthCheck = useRef<number>(0)
 
   // Background save function
   const saveSummaryToDatabase = async (summaryData: {
@@ -145,6 +148,7 @@ export default function DashboardPage() {
         }
       } else {
         console.log('Tab became hidden')
+        setRecoveryAttempted(false) // Reset recovery flag when tab is hidden
       }
     }
 
@@ -171,10 +175,64 @@ export default function DashboardPage() {
       loadDashboardData(true)
     }
 
-    const handlePageSlow = (event: CustomEvent) => {
+    const handlePageSlow = async (event: CustomEvent) => {
       console.warn('⚠️ Dashboard page performance degraded:', event.detail)
+      
+      // If we haven't attempted recovery yet, try to recover
+      if (!recoveryAttempted && user && !loading && !isProcessing) {
+        setRecoveryAttempted(true)
+        console.log('Attempting recovery due to slow page performance')
+        
+        // Try to refresh the session
+        try {
+          await refreshSession()
+          console.log('Session refreshed, reloading dashboard data')
+          await loadDashboardData(true)
+        } catch (error) {
+          console.error('Error during recovery attempt:', error)
+        }
+      }
+    }
+
+    // Handle Supabase recovery events
+    const handleSupabaseRecovered = () => {
+      console.log('Supabase connection recovered - refreshing dashboard')
       if (user && !loading && !isProcessing) {
         loadDashboardData(true)
+      }
+    }
+
+    // Handle Supabase recovery failure
+    const handleSupabaseRecoveryFailed = async () => {
+      console.error('❌ Supabase recovery failed - forcing session refresh')
+      if (!recoveryAttempted) {
+        setRecoveryAttempted(true)
+        try {
+          await refreshSession()
+          if (user && !loading && !isProcessing) {
+            await loadDashboardData(true)
+          }
+        } catch (error) {
+          console.error('Error during recovery:', error)
+        }
+      }
+    }
+
+    // Handle comprehensive recovery for frozen pages
+    const handleComprehensiveRecovery = async (event: CustomEvent) => {
+      console.log('Comprehensive recovery initiated:', event.detail)
+      
+      // Handle long suspension recovery
+      try {
+        const recoverySuccess = await handleLongSuspensionRecovery()
+        console.log('Long suspension recovery result:', recoverySuccess)
+        
+        // Refresh dashboard data
+        if (user && !loading && !isProcessing) {
+          await loadDashboardData(true)
+        }
+      } catch (error) {
+        console.error('Error during comprehensive recovery:', error)
       }
     }
 
@@ -183,6 +241,9 @@ export default function DashboardPage() {
     window.addEventListener('blur', handleBlur)
     window.addEventListener('pageCorrupted', handlePageCorrupted as EventListener)
     window.addEventListener('pageSlow', handlePageSlow as EventListener)
+    window.addEventListener('supabaseRecovered', handleSupabaseRecovered)
+    window.addEventListener('supabaseRecoveryFailed', handleSupabaseRecoveryFailed)
+    window.addEventListener('comprehensiveRecovery', handleComprehensiveRecovery as EventListener)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -190,6 +251,50 @@ export default function DashboardPage() {
       window.removeEventListener('blur', handleBlur)
       window.removeEventListener('pageCorrupted', handlePageCorrupted as EventListener)
       window.removeEventListener('pageSlow', handlePageSlow as EventListener)
+      window.removeEventListener('supabaseRecovered', handleSupabaseRecovered)
+      window.removeEventListener('supabaseRecoveryFailed', handleSupabaseRecoveryFailed)
+      window.removeEventListener('comprehensiveRecovery', handleComprehensiveRecovery as EventListener)
+      
+      // Clear intervals
+      if (healthCheckInterval.current) {
+        clearInterval(healthCheckInterval.current)
+      }
+    }
+  }, [user, loading, isProcessing, refreshSession, recoveryAttempted, forceTokenRefresh, handleLongSuspensionRecovery])
+
+  // Add periodic health check for dashboard with improved logic
+  useEffect(() => {
+    // Check dashboard health every 30 seconds
+    healthCheckInterval.current = setInterval(() => {
+      const now = Date.now()
+      
+      // Skip health check if we just did one (within 25 seconds)
+      if (now - lastHealthCheck.current < 25000) {
+        return
+      }
+      
+      lastHealthCheck.current = now
+      
+      if (user && !document.hidden && !loading && !isProcessing) {
+        // Simple health check - verify we can still get session
+        supabase.auth.getSession()
+          .then(({ data, error }) => {
+            if (error) {
+              console.warn('Dashboard health check failed:', error)
+              // Trigger recovery
+              loadDashboardData(true)
+            }
+          })
+          .catch(err => {
+            console.warn('Dashboard health check error:', err)
+          })
+      }
+    }, 30000) // 30 seconds
+
+    return () => {
+      if (healthCheckInterval.current) {
+        clearInterval(healthCheckInterval.current)
+      }
     }
   }, [user, loading, isProcessing])
 
@@ -209,7 +314,26 @@ export default function DashboardPage() {
       // Get the current session token
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) {
-        throw new Error('Нет активной сессии пользователя')
+        // Try to refresh session if token is missing
+        console.warn('No active session token, attempting to refresh...')
+        await refreshSession()
+        
+        // Check again after refresh
+        const { data: { session: refreshedSession } } = await supabase.auth.getSession()
+        if (!refreshedSession?.access_token) {
+          // Try force token refresh for expired tokens
+          console.warn('Session refresh failed, attempting force token refresh...')
+          const tokenRefreshed = await forceTokenRefresh()
+          if (!tokenRefreshed) {
+            throw new Error('Нет активной сессии пользователя даже после обновления')
+          }
+          
+          // Get session again after force refresh
+          const { data: { session: forceRefreshedSession } } = await supabase.auth.getSession()
+          if (!forceRefreshedSession?.access_token) {
+            throw new Error('Нет активной сессии пользователя даже после принудительного обновления')
+          }
+        }
       }
 
       // Call the optimized dashboard API endpoint
@@ -221,7 +345,7 @@ export default function DashboardPage() {
       const response = await fetch('/api/dashboard', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${session?.access_token || refreshedSession?.access_token}`,
           'Content-Type': 'application/json'
         },
         signal: controller.signal

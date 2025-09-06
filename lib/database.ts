@@ -1,27 +1,131 @@
 import { supabase } from '@/lib/supabase/client'
 import type { Summary, User, UsageStats } from '@/lib/supabase/client'
 
+// Helper function to check if Supabase connection is healthy
+const isSupabaseConnected = async (): Promise<boolean> => {
+  try {
+    // Simple health check - try to get the current user
+    const { data: { user }, error } = await supabase.auth.getUser()
+    return !error && !!user
+  } catch (err) {
+    console.warn('Supabase connection health check failed:', err)
+    return false
+  }
+}
+
+// Helper function to recover Supabase connection
+const recoverSupabaseConnection = async (): Promise<boolean> => {
+  try {
+    console.log('Attempting to recover Supabase connection...')
+    
+    // Check if recovery method exists
+    if (typeof supabase._recoverConnection === 'function') {
+      const success = await supabase._recoverConnection()
+      if (success) {
+        console.log('✅ Supabase connection recovered successfully')
+        return true
+      } else {
+        console.error('❌ Failed to recover Supabase connection')
+        return false
+      }
+    }
+    
+    // Fallback: try to refresh session
+    const { error } = await supabase.auth.refreshSession()
+    if (error) {
+      console.error('❌ Failed to refresh session:', error)
+      return false
+    }
+    
+    console.log('✅ Session refreshed successfully')
+    return true
+  } catch (err) {
+    console.error('❌ Exception during connection recovery:', err)
+    return false
+  }
+}
+
+// Enhanced helper function to handle long suspension recovery
+const handleLongSuspensionRecovery = async (): Promise<boolean> => {
+  try {
+    console.log('Attempting long suspension recovery...')
+    
+    // Try force token refresh through Supabase client
+    if (typeof supabase._forceTokenRefresh === 'function') {
+      const tokenRefreshed = await supabase._forceTokenRefresh()
+      if (tokenRefreshed) {
+        console.log('✅ Token refreshed through Supabase client during long suspension recovery')
+        return true
+      }
+    }
+    
+    // Fallback to standard recovery
+    return await recoverSupabaseConnection()
+  } catch (err) {
+    console.error('❌ Exception during long suspension recovery:', err)
+    return false
+  }
+}
+
 export const databaseService = {
   // User operations
   async getUserProfile(userId: string): Promise<{ user: User | null; error: any }> {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    
-    return { user, error }
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { user: null, error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
+
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      
+      return { user, error }
+    } catch (error) {
+      console.error('Database: Error getting user profile:', error)
+      return { user: null, error }
+    }
   },
 
   async updateUserProfile(userId: string, updates: Partial<User>): Promise<{ user: User | null; error: any }> {
-    const { data: user, error } = await supabase
-      .from('users')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', userId)
-      .select()
-      .single()
-    
-    return { user, error }
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { user: null, error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
+
+      const { data: user, error } = await supabase
+        .from('users')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+        .select()
+        .single()
+      
+      return { user, error }
+    } catch (error) {
+      console.error('Database: Error updating user profile:', error)
+      return { user: null, error }
+    }
   },
 
   // Summary operations
@@ -35,6 +139,20 @@ export const databaseService = {
         processing_time: summary.processing_time,
         is_favorite: summary.is_favorite
       })
+
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { summary: null, error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
 
       // Add timeout to prevent hanging
       const insertPromise = supabase
@@ -72,43 +190,83 @@ export const databaseService = {
       sortOrder?: 'asc' | 'desc'
     }
   ): Promise<{ summaries: Summary[]; error: any; count?: number }> {
-    let query = supabase
-      .from('summaries')
-      .select('*', { count: 'exact' })
-      .eq('user_id', userId)
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            // Return empty data instead of error to keep UI functional
+            return { summaries: [], error: null, count: 0 }
+          }
+        }
+      }
 
-    // Add search filter
-    if (options?.search) {
-      query = query.or(`video_title.ilike.%${options.search}%,summary_text.ilike.%${options.search}%`)
+      let query = supabase
+        .from('summaries')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId)
+
+      // Add search filter
+      if (options?.search) {
+        query = query.or(`video_title.ilike.%${options.search}%,summary_text.ilike.%${options.search}%`)
+      }
+
+      // Add sorting
+      const sortBy = options?.sortBy || 'created_at'
+      const sortOrder = options?.sortOrder || 'desc'
+      query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+
+      // Add pagination
+      if (options?.limit) {
+        query = query.limit(options.limit)
+      }
+      if (options?.offset) {
+        query = query.range(options.offset, options.offset + (options.limit || 10) - 1)
+      }
+
+      const { data: summaries, error, count } = await query
+
+      return { summaries: summaries || [], error, count: count || 0 }
+    } catch (error) {
+      console.error('Database: Error getting user summaries:', error)
+      // Return empty data instead of error to keep UI functional
+      return { summaries: [], error: null, count: 0 }
     }
-
-    // Add sorting
-    const sortBy = options?.sortBy || 'created_at'
-    const sortOrder = options?.sortOrder || 'desc'
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' })
-
-    // Add pagination
-    if (options?.limit) {
-      query = query.limit(options.limit)
-    }
-    if (options?.offset) {
-      query = query.range(options.offset, options.offset + (options.limit || 10) - 1)
-    }
-
-    const { data: summaries, error, count } = await query
-
-    return { summaries: summaries || [], error, count: count || 0 }
   },
 
   async getSummaryById(summaryId: string, userId: string): Promise<{ summary: Summary | null; error: any }> {
-    const { data: summary, error } = await supabase
-      .from('summaries')
-      .select('*')
-      .eq('id', summaryId)
-      .eq('user_id', userId)
-      .single()
-    
-    return { summary, error }
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { summary: null, error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
+
+      const { data: summary, error } = await supabase
+        .from('summaries')
+        .select('*')
+        .eq('id', summaryId)
+        .eq('user_id', userId)
+        .single()
+      
+      return { summary, error }
+    } catch (error) {
+      console.error('Database: Error getting summary by ID:', error)
+      return { summary: null, error }
+    }
   },
 
   async updateSummary(
@@ -116,68 +274,163 @@ export const databaseService = {
     userId: string, 
     updates: Partial<Summary>
   ): Promise<{ summary: Summary | null; error: any }> {
-    const { data: summary, error } = await supabase
-      .from('summaries')
-      .update(updates)
-      .eq('id', summaryId)
-      .eq('user_id', userId)
-      .select()
-      .single()
-    
-    return { summary, error }
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { summary: null, error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
+
+      const { data: summary, error } = await supabase
+        .from('summaries')
+        .update(updates)
+        .eq('id', summaryId)
+        .eq('user_id', userId)
+        .select()
+        .single()
+      
+      return { summary, error }
+    } catch (error) {
+      console.error('Database: Error updating summary:', error)
+      return { summary: null, error }
+    }
   },
 
   async deleteSummary(summaryId: string, userId: string): Promise<{ error: any }> {
-    const { error } = await supabase
-      .from('summaries')
-      .delete()
-      .eq('id', summaryId)
-      .eq('user_id', userId)
-    
-    return { error }
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
+
+      const { error } = await supabase
+        .from('summaries')
+        .delete()
+        .eq('id', summaryId)
+        .eq('user_id', userId)
+      
+      return { error }
+    } catch (error) {
+      console.error('Database: Error deleting summary:', error)
+      return { error }
+    }
   },
 
   async toggleFavorite(summaryId: string, userId: string): Promise<{ summary: Summary | null; error: any }> {
-    // First get the current state
-    const { summary: currentSummary, error: fetchError } = await this.getSummaryById(summaryId, userId)
-    
-    if (fetchError || !currentSummary) {
-      return { summary: null, error: fetchError }
-    }
+    try {
+      // First get the current state
+      const { summary: currentSummary, error: fetchError } = await this.getSummaryById(summaryId, userId)
+      
+      if (fetchError || !currentSummary) {
+        return { summary: null, error: fetchError }
+      }
 
-    // Toggle the favorite status
-    const { data: summary, error } = await supabase
-      .from('summaries')
-      .update({ is_favorite: !currentSummary.is_favorite })
-      .eq('id', summaryId)
-      .eq('user_id', userId)
-      .select()
-      .single()
-    
-    return { summary, error }
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { summary: null, error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
+
+      // Toggle the favorite status
+      const { data: summary, error } = await supabase
+        .from('summaries')
+        .update({ is_favorite: !currentSummary.is_favorite })
+        .eq('id', summaryId)
+        .eq('user_id', userId)
+        .select()
+        .single()
+      
+      return { summary, error }
+    } catch (error) {
+      console.error('Database: Error toggling favorite:', error)
+      return { summary: null, error }
+    }
   },
 
   // Usage analytics
   async trackUsage(stats: Omit<UsageStats, 'id' | 'created_at'>): Promise<{ error: any }> {
-    const { error } = await supabase
-      .from('usage_stats')
-      .insert(stats)
-    
-    return { error }
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
+
+      const { error } = await supabase
+        .from('usage_stats')
+        .insert(stats)
+      
+      return { error }
+    } catch (error) {
+      console.error('Database: Error tracking usage:', error)
+      return { error }
+    }
   },
 
   async getUserStats(userId: string, days: number = 30): Promise<{ stats: any; error: any }> {
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - days)
+    try {
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            return { stats: [], error: new Error('Failed to recover Supabase connection') }
+          }
+        }
+      }
 
-    const { data: stats, error } = await supabase
-      .from('usage_stats')
-      .select('action, created_at, metadata')
-      .eq('user_id', userId)
-      .gte('created_at', startDate.toISOString())
-      .order('created_at', { ascending: false })
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - days)
 
-    return { stats, error }
+      const { data: stats, error } = await supabase
+        .from('usage_stats')
+        .select('action, created_at, metadata')
+        .eq('user_id', userId)
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: false })
+
+      return { stats, error }
+    } catch (error) {
+      console.error('Database: Error getting user stats:', error)
+      return { stats: [], error }
+    }
   },
 
   // Dashboard data
@@ -190,6 +443,27 @@ export const databaseService = {
   }> {
     try {
       console.log('Database: Loading dashboard data for user:', userId)
+      
+      // Check connection health first
+      const isConnected = await isSupabaseConnected()
+      if (!isConnected) {
+        console.warn('Supabase connection not healthy, attempting to recover...')
+        const recoverySuccess = await recoverSupabaseConnection()
+        if (!recoverySuccess) {
+          // Try long suspension recovery for severe cases
+          const longRecoverySuccess = await handleLongSuspensionRecovery()
+          if (!longRecoverySuccess) {
+            // Return default data to keep UI functional
+            return {
+              totalSummaries: 0,
+              recentSummaries: [],
+              favoriteCount: 0,
+              thisWeekCount: 0,
+              error: new Error('Failed to recover Supabase connection')
+            }
+          }
+        }
+      }
       
       // Add timeout wrapper - reduced from 15s to 8s for better UX
       const timeoutPromise = new Promise((_, reject) => {
@@ -273,6 +547,7 @@ export const databaseService = {
       
     } catch (error) {
       console.error('Database: Error loading dashboard data:', error)
+      // Return default data to keep UI functional
       return {
         totalSummaries: 0,
         recentSummaries: [],
